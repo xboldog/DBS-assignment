@@ -92,37 +92,135 @@
 \section{Špecifikácia}
 \label{sec:specifikacia}
 
-The goal of this project was to create a submission template for the DBS
-course that students can clone and start writing in immediately. The template
-should be easy to use, support Slovak and English, and not require any prior
-\LaTeX{} experience\footnote{If this is your first time with \LaTeX{}, the
-Overleaf guide \cite{overleaf-docs} covers everything you need in about 30 minutes.}.
+Reštauračný systém rieši problém evidencie a riadenia prevádzkových procesov 
+v reštauračnom zariadení. Systém je určený pre reštaurácie, ktoré chcú 
+digitalizovať svoju prevádzku — od správy stolov a rezervácií až po spracovanie 
+objednávok a platieb. Jeho pridaná hodnota spočíva v tom, že zjednocuje všetky 
+prevádzkové procesy do jedného nástroja, znižuje chybovosť spôsobenú ručným 
+zadávaním, zrýchľuje obsluhu zákazníkov a poskytuje manažmentu prehľad 
+o prevádzke v reálnom čase. Systém podporuje dva prevádzkové modely --- 
+klasickú obsluhu pri stole (\textbf{dine-in}) a donáškový servis 
+(\textbf{delivery}).
 
-The template repository is available at \cite{template-repo}.
+% ─────────────────────────────────────────────────────────────────────────────
+\subsection{Aktéri systému}
 
-% ── Subsections ──────────────────────────────────────────────────────────────
-% Use \subsection{} and \subsubsection{} when you need more structure.
-
-\subsection{Requirements}
-
-We identified the following requirements:
+Systém rozlišuje päť typov aktérov, pričom každý má presne vymedzenú rolu, 
+zodpovednosti a úroveň prístupu.
 
 \begin{itemize}
-    \item Clean cover page with faculty branding.
-    \item Bilingual support (SK/EN) via a single toggle.
-    \item Examples of tables, figures, code, and citations.
-    \item Minimal package dependencies --- it should compile everywhere.
+
+    \item \textbf{Zákazník} je koncový používateľ systému, ktorý vytvára 
+    rezervácie stolov, prezerá jedálniček, zadáva objednávky a realizuje 
+    platby. Má prístup výlučne k vlastným objednávkam, rezerváciám 
+    a platobným záznamom. V prípade donášky môže sledovať stav svojej 
+    objednávky a po jej doručení zanechať recenziu.
+
+    \item \textbf{Čašník} je zamestnanec zodpovedný za priamu obsluhu 
+    zákazníkov pri stoloch. Spravuje priradenie zákazníkov k stolom, zadáva 
+    a modifikuje objednávky v mene zákazníka a iniciuje platobný proces. 
+    Má prístup k zoznamu stolov a ich stavom a k aktívnym objednávkam.
+
+    \item \textbf{Kuchár} prijíma objednávky zaradené do frontu a zodpovedá 
+    za ich prípravu. Jeho úlohou v systéme je zmeniť stav objednávky 
+    z \textit{„čaká na prípravu"} na \textit{„pripravuje sa"} a po dokončení 
+    na \textit{„hotová"}. Kuchár má prístup iba k identifikátoru objednávky 
+    a zoznamu objednaných položiek --- osobné údaje zákazníka sú pre neho 
+    skryté.
+
+    \item \textbf{Manažér} má najvyššiu úroveň prístupu v systéme. 
+    Zodpovedá za správu jedálničku, kontrolu skladových zásob, správu 
+    zamestnancov a generovanie prevádzkových reportov. Môže pristupovať 
+    ku všetkým dátam v systéme.
+
+    \item \textbf{Kuriér} zabezpečuje fyzické doručenie objednávok na adresu 
+    zákazníka. Systém mu sprístupní iba informácie nevyhnutné pre doručenie 
+    --- doručovaciu adresu, spôsob platby a kontaktné údaje zákazníka. 
+    Po odovzdaní objednávky aktualizuje jej stav na \textit{„doručená"}.
+
 \end{itemize}
 
-When listing ordered steps, use \texttt{enumerate} instead:
+% ─────────────────────────────────────────────────────────────────────────────
+\subsection{Kľúčové entity}
 
-\begin{enumerate}
-    \item Clone the repository.
-    \item Edit \texttt{main.tex}.
-    \item Run \texttt{make}.
-    \item Submit the PDF.
-\end{enumerate}
+Systém eviduje niekoľko kľúčových entít, ktoré spoločne pokrývajú celý 
+životný cyklus reštauračnej prevádzky.
 
+\begin{itemize}
+
+    \item \textbf{Zákazník} reprezentuje identitu osoby interagujúcej 
+    so systémom. Evidujeme jeho osobné a kontaktné údaje vrátane doručovacej 
+    adresy, ktorá je nevyhnutná pre objednávky typu delivery.
+
+    \item \textbf{Zamestnanec} zastupuje všetkých pracovníkov reštaurácie. 
+    Rola je evidovaná ako atribút zamestnanca, čo zjednodušuje správu 
+    prístupových práv a personálnych záznamov.
+
+    \item \textbf{Stôl} reprezentuje fyzickú kapacitu reštaurácie. 
+    Evidujeme číslo stola, jeho kapacitu a aktuálny stav --- 
+    \textit{voľný}, \textit{rezervovaný} alebo \textit{obsadený}.
+
+    \item \textbf{Rezervácia} zachytáva plánované využitie konkrétneho stola 
+    v stanovenom časovom intervale. Je prepojená so zákazníkom a stolom 
+    a obsahuje dátum, čas začiatku a konca. Táto entita je kritická pre 
+    správne riadenie kapacity reštaurácie.
+
+    \item \textbf{Objednávka} je ústrednou entitou celého systému. Môže byť 
+    typu \textbf{dine-in} (prepojená so stolom a čašníkom) alebo 
+    \textbf{delivery} (prepojená s adresou a kuriérom). Eviduje stav 
+    spracovania a časové pečiatky jednotlivých prechodov.
+
+    \item \textbf{Položka menu} predstavuje ponuku reštaurácie --- každé 
+    jedlo alebo nápoj s názvom, popisom, cenou a kategóriou. Systém 
+    uchováva históriu zmien cien, aby staré objednávky zostali konzistentné.
+
+    \item \textbf{Platba} zaznamenáva úhradu spojenú s konkrétnou 
+    objednávkou. Eviduje celkovú sumu, spôsob platby, časovú pečiatku 
+    a stav platby.
+
+    \item \textbf{Recenzia} umožňuje zákazníkovi ohodnotiť skúsenosť po 
+    dokončení objednávky. Je prepojená s konkrétnou objednávkou, čím sa 
+    zabraňuje viacnásobnému hodnoteniu tej istej návštevy.
+
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\subsection{Biznis pravidlá a obmedzenia}
+
+Systém musí rešpektovať niekoľko biznis pravidiel, ktoré sa priamo premietajú 
+do integritných obmedzení databázy.
+
+\begin{itemize}
+
+    \item \textbf{Exkluzivita rezervácií} --- stôl nemôže byť rezervovaný 
+    pre viac ako jednu rezerváciu v rovnakom časovom intervale. Obmedzenie 
+    sa implementuje ako kontrola prekrývania časových intervalov pre daný stôl.
+
+    \item \textbf{Podmienka vytvorenia objednávky} --- objednávku typu 
+    dine-in je možné vytvoriť iba pre stôl v stave \textit{„rezervovaný"} 
+    alebo \textit{„obsadený"}. Zabraňuje sa tým vzniku objednávok pre 
+    stoly, pri ktorých nesedí žiadny zákazník.
+
+    \item \textbf{Podmienka uzavretia objednávky} --- objednávka nemôže 
+    byť označená ako \textit{„zaplatená"}, pokiaľ k nej neexistuje platný 
+    záznam o platbe. Obmedzenie sa vynucuje cudzím kľúčom a stavovým 
+    automatom objednávky.
+
+    \item \textbf{Dostupnosť skladových zásob} --- položku menu nie je 
+    možné zaradiť do objednávky, ak nie sú dostupné potrebné ingrediencie 
+    na sklade. Po potvrdení objednávky systém zodpovedajúce množstvá 
+    automaticky odečíta.
+
+    \item \textbf{Obmedzenie vzdialenosti doručenia} --- objednávku typu 
+    delivery nie je možné vytvoriť, ak doručovacia adresa presahuje 
+    maximálnu prípustnú vzdialenosť. Táto hodnota je konfigurovateľná 
+    manažérom.
+
+    \item \textbf{Jedinečnosť recenzie} --- zákazník môže zanechať najviac 
+    jednu recenziu na jednu objednávku. Duplicita sa vynucuje unikátnym 
+    obmedzením na kombináciu zákazník--objednávka.
+
+\end{itemize}
 
 \newpage
 \section{Definovanie používateľských scenárov}
@@ -141,11 +239,11 @@ Table~\ref{tab:comparison} summarizes our options.
     \label{tab:comparison}
     \begin{tabular}{l c c c}
         \toprule
-        \textbf{Approach}  & \textbf{Easy to edit} & \textbf{Bilingual} & \textbf{Compiles anywhere} \\
+        \textbf{Approach} & \textbf{Easy to edit} & \textbf{Bilingual} & \textbf{Compiles anywhere} \\
         \midrule
-        Word document       & yes                   & manual             & n/a  \\
-        Markdown + Pandoc   & yes                   & no                 & maybe \\
-        \LaTeX{} template   & yes                   & yes                & yes  \\
+        Word document     & yes                   & manual             & n/a                        \\
+        Markdown + Pandoc & yes                   & no                 & maybe                      \\
+        \LaTeX{} template & yes                   & yes                & yes                        \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -153,7 +251,7 @@ Table~\ref{tab:comparison} summarizes our options.
 We chose \LaTeX{} because it handles structured documents, citations,
 and cross-references well --- things that matter when writing technical
 reports\footnote{It also looks way better than a Word document. But we are
-biased.}. Unrelated: the wood frog can survive being frozen solid for months ---
+    biased.}. Unrelated: the wood frog can survive being frozen solid for months ---
 its heart stops, it stops breathing, and in spring it just thaws and hops away.
 We found this less stressful than debugging \LaTeX{} table alignment.
 
@@ -217,8 +315,8 @@ putting all examples in one place --- this document.
 We also learned that BibTeX interprets \texttt{@} signs in comments as
 entry types, which caused confusing errors. Small things like this are
 easy to fix once you know about them, but hard to debug the first time\footnote{A
-group of frogs is called an ``army.'' A group of students debugging BibTeX at
-2\,AM is called ``Tuesday.''}.
+    group of frogs is called an ``army.'' A group of students debugging BibTeX at
+    2\,AM is called ``Tuesday.''}.
 
 
 \newpage
