@@ -89,8 +89,8 @@
 % Template source: https://github.com/FIIT-Databases/assignment-template
 % =============================================================================
 
-\section{Analysis}
-\label{sec:analysis}
+\section{Špecifikácia}
+\label{sec:specifikacia}
 
 The goal of this project was to create a submission template for the DBS
 course that students can clone and start writing in immediately. The template
@@ -125,8 +125,8 @@ When listing ordered steps, use \texttt{enumerate} instead:
 
 
 \newpage
-\section{Proposal}
-\label{sec:proposal}
+\section{Definovanie používateľských scenárov}
+\label{sec:user_scenarios}
 
 We compared a few approaches before settling on the current structure.
 Table~\ref{tab:comparison} summarizes our options.
@@ -159,8 +159,8 @@ We found this less stressful than debugging \LaTeX{} table alignment.
 
 
 \newpage
-\section{Implementation}
-\label{sec:implementation}
+\section{Návrh relačného modelu}
+\label{sec:rm_design}
 
 The template lives in a simple directory structure with localization files
 separated from the main document. Switching language requires changing one
@@ -191,9 +191,9 @@ ORDER BY submission_count DESC;
 % Use \texttt{} for inline code: \texttt{SELECT * FROM ...}
 
 References to tables, figures, and sections are automatic. For example,
-this is Section~\ref{sec:implementation}, the comparison is in
+this is Section~\ref{sec:rm_design}, the comparison is in
 Table~\ref{tab:comparison}, and the faculty logo is shown in
-Figure~\ref{fig:logo} in Attachment~\ref{sec:attachment-a1}.
+Figure~\ref{fig:logo} in Attachment~\ref{sec:attachments}.
 If you add or reorder content, the numbers update on the next build.
 
 % ── Citations ────────────────────────────────────────────────────────────────
@@ -206,8 +206,8 @@ in \cite{elmasri2016}. For PostgreSQL-specific syntax, see
 
 
 \newpage
-\section{Challenges}
-\label{sec:challenges}
+\section{Zhodnotenie}
+\label{sec:conclusion}
 
 The main challenge was keeping the template simple enough that a student
 seeing \LaTeX{} for the first time would not immediately close the file.
@@ -222,16 +222,6 @@ group of frogs is called an ``army.'' A group of students debugging BibTeX at
 
 
 \newpage
-\section{Conclusion}
-\label{sec:conclusion}
-
-The template meets the requirements from Section~\ref{sec:analysis}.
-It compiles with a standard \LaTeX{} distribution, supports two
-languages, and provides working examples of every feature students
-are likely to need.
-
-For anything not covered here, the Overleaf documentation
-\cite{overleaf-docs} is an excellent reference.
 
 % ─── Bibliography ────────────────────────────────────────────────────────────
 \printbibliography
@@ -240,8 +230,8 @@ For anything not covered here, the Overleaf documentation
 \newpage
 \appendix
 
-\section{Sample figures}
-\label{sec:attachment-a1}
+\section{Prílohy}
+\label{sec:attachments}
 
 % ── Figures ──────────────────────────────────────────────────────────────────
 % Use \begin{figure}[H] to place the figure exactly here.
