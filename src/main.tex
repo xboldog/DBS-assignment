@@ -226,6 +226,131 @@ do integritných obmedzení databázy.
 \section{Definovanie používateľských scenárov}
 \label{sec:user_scenarios}
 
+\subsection*{Scenár č.1 - Rezervácia stola a príchod do reštaurácie}
+
+\noindent\textbf{Názov:} Rezervácia stola a príchod do reštaurácie \\
+\noindent\textbf{Popis:} Scenár pokrýva proces vytvorenia rezervácie cez webovú stránku, registráciu zákazníka a overenie rezervácie pri príchode do reštaurácie. \\
+\noindent\textbf{Aktér:} Zákazník, Zamestnanec
+
+\subsubsection*{Hlavný tok}
+
+\begin{enumerate}
+
+    \item \textbf{Zákazník si prezerá dostupné stoly} \\
+    Zákazník navštívi webovú stránku reštaurácie a zvolí dátum a čas. \\
+    \textit{Dátová vrstva:} Prehľadáva sa tabuľka \texttt{Stol} v kombinácii s tabuľkou \texttt{Rezervacia}. Pre každý stôl sa overuje, či v zadanom časovom okne neexistuje žiadna rezervácia s prekrývajúcim sa intervalom. Zákazníkovi sa vrátia záznamy stolov (číslo stola, kapacita), pre ktoré táto podmienka platí.
+
+    \item \textbf{Zákazník sa zaregistruje} \\
+    Zákazník klikne na \textit{„Zaregistrovať"} a zadá svoje údaje. \\
+    \textit{Dátová vrstva:} Pred vytvorením záznamu sa v tabuľke \texttt{Zakaznik} overuje unikátnosť zadaného e-mailu a telefónneho čísla. Ak sú unikátne, vytvorí sa nový záznam s atribútmi \texttt{meno}, \texttt{priezvisko}, \texttt{email}, \texttt{tel}. Systém vráti vygenerované \texttt{id} nového zákazníka.
+
+    \item \textbf{Zákazník vytvorí rezerváciu} \\
+    Zákazník vyberie stôl a potvrdí rezerváciu. \\
+    \textit{Dátová vrstva:} Systém znovu overí v tabuľke \texttt{Rezervacia}, že pre daný stôl a dátum neexistuje žiadny záznam s prekrývajúcim sa časovým intervalom. Ak podmienka platí, vytvorí sa nový záznam obsahujúci \texttt{id\_zakaznika}, \texttt{cislo\_stola}, \texttt{datum}, \texttt{cas\_zaciatku}, \texttt{cas\_konca}, \texttt{pocet\_osob} a \texttt{stav} nastavený na \texttt{potvrdena}. Zákazník dostane potvrdenie rezervácie.
+
+    \item \textbf{Zákazník príde do reštaurácie} \\
+    Zákazník sa predstaví zamestnancom svojím menom. Zamestnanec overí rezerváciu v systéme a usadí zákazníka. \\
+    \textit{Dátová vrstva:} Prehľadáva sa tabuľka \texttt{Rezervacia} prepojená s tabuľkou \texttt{Zakaznik} cez \texttt{id\_zakaznika}. Filtruje sa podľa mena, priezviska zákazníka a dnešného dátumu. Po nájdení záznamu sa v tabuľke \texttt{Rezervacia} aktualizuje atribút \texttt{stav} na \texttt{aktivna} a v tabuľke \texttt{Stol} sa pre príslušný stôl aktualizuje \texttt{stav} na \texttt{obsadeny}.
+
+\end{enumerate}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{../assets/diagram1cast1}
+    \caption{Scenár č.1 - Časť 1: Prezeranie dostupných stolov}
+    \label{fig:diagram1cast1}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{../assets/diagram1cast2}
+    \caption{Scenár č.1 - Časť 2: Registrácia zákazníka a vytvorenie rezervácie}
+    \label{fig:diagram1cast2}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{../assets/diagram1cast3}
+    \caption{Scenár č.1 - Časť 3: Príchod do reštaurácie}
+    \label{fig:diagram1cast3}
+\end{figure}\subsubsection*{Alternatívne toky}
+
+\begin{itemize}
+
+    \item \textbf{Alt. A - E-mail alebo telefónne číslo už existuje (krok 2)} \\
+    Overenie unikátnosti v tabuľke \texttt{Zakaznik} zlyhá. Systém informuje zákazníka, že zadaný e-mail alebo telefónne číslo je už registrované. Zákazník sa prihlási do existujúceho účtu a pokračuje krokom 3.
+
+    \item \textbf{Alt. B - Stôl už nie je dostupný (krok 3)} \\
+    Overenie v tabuľke \texttt{Rezervacia} odhalí prekrývajúci sa záznam pre daný stôl a čas. Systém informuje zákazníka a zobrazí znovu dostupné stoly. Zákazník si vyberie iný stôl alebo čas a pokračuje krokom 3.
+
+    \item \textbf{Alt. C - Rezervácia sa nenájde (krok 4)} \\
+    Prehľadávanie tabuľky \texttt{Rezervacia} prepojenej s \texttt{Zakaznik} nevráti žiadny záznam. Zamestnanec sa ospravedlní zákazníkovi. Systém prehľadá tabuľku \texttt{Stol} a vráti záznamy kde \texttt{stav = 'volny'}. Ak existuje voľný stôl, zákazník je usadený bez rezervácie a scenár končí úspešne. Ak nie, zákazník musí počkať alebo odísť.
+
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsection*{Scenár č.2 - Objednanie jedla, platba a recenzia}
+
+\noindent\textbf{Názov:} Objednanie jedla, platba a recenzia \\
+\noindent\textbf{Popis:} Scenár pokrýva proces objednania jedla zákazníkom pri stole, spracovanie objednávky kuchyňou, doručenie jedla čašníkom, zaplatenie účtu a zanechanie recenzie. \\
+\noindent\textbf{Aktér:} Zákazník, Čašník, Kuchár
+
+\subsubsection*{Hlavný tok}
+
+\begin{enumerate}
+
+    \item \textbf{Zákazník si objedná} \\
+    Zákazník si prezrie digitálne menu, vyberie hlavné jedlo a drink a potvrdí objednávku. \\
+    \textit{Dátová vrstva:} Prehľadáva sa tabuľka \texttt{PolozkaMenu}, pričom sa vrátia len záznamy kde \texttt{je\_dostupna = TRUE} s atribútmi \texttt{nazov}, \texttt{popis}, \texttt{aktualna\_cena} a \texttt{kategoria}. Po potvrdení sa vytvorí nový záznam v tabuľke \texttt{Objednavka} s atribútmi \texttt{stav} nastaveným na \texttt{nova} a \texttt{cas\_vytvorenia}. Následne sa vytvorí prepojený záznam v tabuľke \texttt{DineInObjednavka} obsahujúci \texttt{cislo\_stola} a \texttt{id\_casnika}. Pre každú vybranú položku sa vytvorí samostatný záznam v tabuľke \texttt{ObjednavkaPolozka} s atribútmi \texttt{id\_objednavky}, \texttt{id\_polozky}, \texttt{mnozstvo}, \texttt{stav} nastavený na \texttt{nova} a \texttt{cena\_v\_case\_objednavky} skopírovaná z aktuálnej ceny položky menu.
+
+    \item \textbf{Zákazník dostane objednávku} \\
+    Zákazník sleduje stav objednávky, čašník postupne prináša hotové položky na stôl. \\
+    \textit{Dátová vrstva:} Prehľadáva sa tabuľka \texttt{Objednavka} podľa \texttt{id} objednávky a vracia sa aktuálna hodnota atribútu \texttt{stav}. Pre každú doručenú položku čašník aktualizuje atribút \texttt{stav} v tabuľke \texttt{ObjednavkaPolozka} na hodnotu \texttt{dorucena}.
+
+    \item \textbf{Zákazník zaplatí} \\
+    Zákazník požiada o účet, zvolí spôsob platby a zaplatí. \\
+    \textit{Dátová vrstva:} Systém zobrazí súhrn objednávky - prehľadáva sa tabuľka \texttt{ObjednavkaPolozka} prepojená s tabuľkou \texttt{PolozkaMenu} cez \texttt{id\_polozky}. Pre každú položku sa vrátia atribúty \texttt{nazov}, \texttt{mnozstvo}, \texttt{cena\_v\_case\_objednavky} a vypočítaný medzisúčet. Celková suma sa získa agregáciou cez všetky záznamy \texttt{ObjednavkaPolozka} patriace k danej objednávke. Následne sa vytvorí nový záznam v tabuľke \texttt{Faktura} s atribútmi \texttt{id\_objednavky}, \texttt{je\_zaplatena} nastaveným na \texttt{TRUE} a \texttt{sposob\_platby}. V tabuľke \texttt{Objednavka} sa aktualizuje \texttt{stav} na \texttt{zaplatena} a v tabuľke \texttt{Stol} sa \texttt{stav} príslušného stola aktualizuje na \texttt{volny}.
+
+    \item \textbf{Zákazník zanechá recenziu} \\
+    Po zaplatení systém vyzve zákazníka na hodnotenie. Zákazník zadá hodnotenie (1-5) a komentár. \\
+    \textit{Dátová vrstva:} Systém overí v tabuľke \texttt{Recenzia}, že pre dané \texttt{id\_objednavky} ešte žiadny záznam neexistuje. Ak podmienka platí, vytvorí sa nový záznam s atribútmi \texttt{id\_objednavky}, \texttt{hodnotenie}, \texttt{komentar} a \texttt{cas}.
+
+\end{enumerate}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{../assets/diagram2cast1}
+    \caption{Scenár č.2 - Časť 1: Otvorenie menu a potvrdenie objednávky:}
+    \label{fig:diagram2cast1}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{../assets/diagram2cast2}
+    \caption{Scenár č.2 - Časť 2: Príprava a doručenie jedla:}
+    \label{fig:diagram2cast2}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{../assets/diagram2cast3}
+    \caption{Scenár č.2 - Časť 3: Účet a platba:}
+    \label{fig:diagram2cast3}
+\end{figure}
+\subsubsection*{Alternatívne toky}
+
+\begin{itemize}
+
+    \item \textbf{Alt. A - Položka nie je dostupná (krok 1)} \\
+    Položka sa v prehľadávaní tabuľky \texttt{PolozkaMenu} nezobrazí, pretože \texttt{je\_dostupna = FALSE}. Zákazník si vyberie inú položku z menu.
+
+    \item \textbf{Alt. B - Zákazník chce zrušiť položku (kroky 1-2)} \\
+    Možné iba ak príslušný záznam v tabuľke \texttt{ObjednavkaPolozka} má atribút \texttt{stav} stále nastavený na \texttt{nova}. Aktualizuje sa \texttt{stav} daného záznamu na \texttt{zrusena}. Ak sú všetky položky zrušené, aktualizuje sa aj \texttt{stav} záznamu v tabuľke \texttt{Objednavka} na \texttt{zrusena}.
+
+    \item \textbf{Alt. C - Zákazník nechce zanechať recenziu (krok 4)} \\
+    Zákazník preskočí výzvu, žiadny záznam v tabuľke \texttt{Recenzia} sa nevytvorí. Scenár končí po kroku 3.
+
+\end{itemize}
+
 We compared a few approaches before settling on the current structure.
 Table~\ref{tab:comparison} summarizes our options.
 
@@ -342,6 +467,28 @@ easy to fix once you know about them, but hard to debug the first time\footnote{
     \caption{Faculty logo used on the cover page}
     \label{fig:logo}
 \end{figure}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{../assets/diagram1cast1}
+    \caption{Scenár č.1 - Časť 1: Prezeranie dostupných stolov}
+    \label{fig:diagram1cast1}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{../assets/diagram1cast2}
+    \caption{Scenár č.1 - Časť 2: Registrácia zákazníka a vytvorenie rezervácie}
+    \label{fig:diagram1cast2}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{../assets/diagram1cast3}
+    \caption{Scenár č.1 - Časť 3: Príchod do reštaurácie}
+    \label{fig:diagram1cast3}
+\end{figure}
+
+
 
 Place your diagrams, screenshots, and other supporting images in this
 section. Reference them from the main text using
