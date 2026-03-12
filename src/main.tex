@@ -1,4 +1,4 @@
-%! Author = jdubec
+%! Author = dboldog, tbubenik
 %! Date = 16/02/2026
 
 \documentclass[11pt, a4paper]{article}
@@ -83,11 +83,6 @@
 \newpage
 
 % =============================================================================
-% This document serves as both the assignment template and a quick guide
-% to the LaTeX features you will need. Replace the content, keep the structure.
-%
-% Template source: https://github.com/FIIT-Databases/assignment-template
-% =============================================================================
 
 \section{Špecifikácia}
 \label{sec:specifikacia}
@@ -171,15 +166,14 @@ Systém eviduje niekoľko kľúčových entít, ktoré spoločne pokrývajú cel
     spracovania a časové pečiatky jednotlivých prechodov.
 
     \item \textbf{Položka menu} predstavuje ponuku reštaurácie --- každé 
-    jedlo alebo nápoj s názvom, popisom, cenou a kategóriou. Systém 
-    uchováva históriu zmien cien, aby staré objednávky zostali konzistentné.
+    jedlo alebo nápoj s názvom, popisom, cenou a kategóriou. Systém uchováva históriu zmien cien\footnote{Cena položky je pri vytvorení objednávky uložená ako snímka hodnoty v čase objednávky, aby historické objednávky zostali konzistentné aj po zmene ceny v menu.}, aby staré objednávky zostali konzistentné.
 
     \item \textbf{Platba} zaznamenáva úhradu spojenú s konkrétnou 
     objednávkou. Eviduje celkovú sumu, spôsob platby, časovú pečiatku 
     a stav platby.
 
     \item \textbf{Recenzia} umožňuje zákazníkovi ohodnotiť skúsenosť po 
-    dokončení objednávky. Je prepojená s konkrétnou objednávkou, čím sa 
+    dokončení objednávky. Je prepojená s konkrétnou objednávkou\footnote{Prepojenie zabezpečuje, že recenziu môže zanechať iba zákazník, ktorý skutočne uskutočnil objednávku.}, čím sa 
     zabraňuje viacnásobnému hodnoteniu tej istej návštevy.
 
 \end{itemize}
@@ -213,7 +207,7 @@ do integritných obmedzení databázy.
 
     \item \textbf{Obmedzenie vzdialenosti doručenia} --- objednávku typu 
     delivery nie je možné vytvoriť, ak doručovacia adresa presahuje 
-    maximálnu prípustnú vzdialenosť. Táto hodnota je konfigurovateľná 
+    maximálnu prípustnú vzdialenosť\footnote{Hodnota je definovaná konfiguráciou systému a môže byť napríklad 5--10 km od prevádzky.}. Táto hodnota je konfigurovateľná 
     manažérom.
 
     \item \textbf{Jedinečnosť recenzie} --- zákazník môže zanechať najviac 
@@ -226,7 +220,7 @@ do integritných obmedzení databázy.
 \section{Definovanie používateľských scenárov}
 \label{sec:user_scenarios}
 
-\subsection*{Scenár č.1 - Rezervácia stola a príchod do reštaurácie}
+\subsection{Scenár č.1 - Rezervácia stola a príchod do reštaurácie}
 
 \noindent\textbf{Názov:} Rezervácia stola a príchod do reštaurácie \\
 \noindent\textbf{Popis:} Scenár pokrýva proces vytvorenia rezervácie cez webovú stránku, registráciu zákazníka a overenie rezervácie pri príchode do reštaurácie. \\
@@ -253,26 +247,29 @@ do integritných obmedzení databázy.
     \textit{Dátová vrstva:} Prehľadáva sa tabuľka \texttt{Rezervacia} prepojená s tabuľkou \texttt{Zakaznik} cez \texttt{id\_zakaznika}. Filtruje sa podľa mena, priezviska zákazníka a dnešného dátumu. Po nájdení záznamu sa v tabuľke \texttt{Rezervacia} aktualizuje atribút \texttt{stav} na \texttt{aktivna} a v tabuľke \texttt{Stol} sa pre príslušný stôl aktualizuje \texttt{stav} na \texttt{obsadeny}.
 
 \end{enumerate}
+
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\textwidth]{../assets/diagram1cast1}
+    \includegraphics[width=0.75\textwidth]{../assets/diagram1cast1}
     \caption{Scenár č.1 - Časť 1: Prezeranie dostupných stolov}
     \label{fig:diagram1cast1}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\textwidth]{../assets/diagram1cast2}
+    \includegraphics[width=0.75\textwidth]{../assets/diagram1cast2}
     \caption{Scenár č.1 - Časť 2: Registrácia zákazníka a vytvorenie rezervácie}
     \label{fig:diagram1cast2}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\textwidth]{../assets/diagram1cast3}
+    \includegraphics[width=0.95\textwidth]{../assets/diagram1cast3}
     \caption{Scenár č.1 - Časť 3: Príchod do reštaurácie}
     \label{fig:diagram1cast3}
-\end{figure}\subsubsection*{Alternatívne toky}
+\end{figure}
+
+\subsubsection*{Alternatívne toky}
 
 \begin{itemize}
 
@@ -289,7 +286,7 @@ do integritných obmedzení databázy.
 
 % ─────────────────────────────────────────────────────────────────────────────
 
-\subsection*{Scenár č.2 - Objednanie jedla, platba a recenzia}
+\subsection{Scenár č.2 - Objednanie jedla, platba a recenzia}
 
 \noindent\textbf{Názov:} Objednanie jedla, platba a recenzia \\
 \noindent\textbf{Popis:} Scenár pokrýva proces objednania jedla zákazníkom pri stole, spracovanie objednávky kuchyňou, doručenie jedla čašníkom, zaplatenie účtu a zanechanie recenzie. \\
@@ -298,44 +295,46 @@ do integritných obmedzení databázy.
 \subsubsection*{Hlavný tok}
 
 \begin{enumerate}
-
+ 
     \item \textbf{Zákazník si objedná} \\
-    Zákazník si prezrie digitálne menu, vyberie hlavné jedlo a drink a potvrdí objednávku. \\
-    \textit{Dátová vrstva:} Prehľadáva sa tabuľka \texttt{PolozkaMenu}, pričom sa vrátia len záznamy kde \texttt{je\_dostupna = TRUE} s atribútmi \texttt{nazov}, \texttt{popis}, \texttt{aktualna\_cena} a \texttt{kategoria}. Po potvrdení sa vytvorí nový záznam v tabuľke \texttt{Objednavka} s atribútmi \texttt{stav} nastaveným na \texttt{nova} a \texttt{cas\_vytvorenia}. Následne sa vytvorí prepojený záznam v tabuľke \texttt{DineInObjednavka} obsahujúci \texttt{cislo\_stola} a \texttt{id\_casnika}. Pre každú vybranú položku sa vytvorí samostatný záznam v tabuľke \texttt{ObjednavkaPolozka} s atribútmi \texttt{id\_objednavky}, \texttt{id\_polozky}, \texttt{mnozstvo}, \texttt{stav} nastavený na \texttt{nova} a \texttt{cena\_v\_case\_objednavky} skopírovaná z aktuálnej ceny položky menu.
-
+    Zákazník si prezrie digitálne menu, vyberie položky a potvrdí objednávku. \\
+    \textit{Dátová vrstva:} Prehľadáva sa tabuľka \texttt{PolozkaMenu}, vrátia sa len záznamy kde \texttt{je\_dostupna = TRUE}. Po potvrdení sa vytvorí záznam v \texttt{Objednavka} (\texttt{stav = nova}), prepojený záznam v \texttt{DineInObjednavka} s \texttt{cislo\_stola} a \texttt{id\_casnika} a pre každú vybranú položku samostatný záznam v \texttt{ObjednavkaPolozka} so \texttt{stavom = nova} a snímkou aktuálnej ceny.
+ 
     \item \textbf{Zákazník dostane objednávku} \\
-    Zákazník sleduje stav objednávky, čašník postupne prináša hotové položky na stôl. \\
-    \textit{Dátová vrstva:} Prehľadáva sa tabuľka \texttt{Objednavka} podľa \texttt{id} objednávky a vracia sa aktuálna hodnota atribútu \texttt{stav}. Pre každú doručenú položku čašník aktualizuje atribút \texttt{stav} v tabuľke \texttt{ObjednavkaPolozka} na hodnotu \texttt{dorucena}.
-
+    Zákazník sleduje stav objednávky na termináli. Keď je objednávka pripravená, čašník ju prinesie na stôl. \\
+    \textit{Dátová vrstva:} Z tabuľky \texttt{Objednavka} sa načíta aktuálny \texttt{stav} podľa \texttt{id} objednávky. Žiadne záznamy sa nevytvárajú ani nemenia.
+ 
     \item \textbf{Zákazník zaplatí} \\
-    Zákazník požiada o účet, zvolí spôsob platby a zaplatí. \\
-    \textit{Dátová vrstva:} Systém zobrazí súhrn objednávky - prehľadáva sa tabuľka \texttt{ObjednavkaPolozka} prepojená s tabuľkou \texttt{PolozkaMenu} cez \texttt{id\_polozky}. Pre každú položku sa vrátia atribúty \texttt{nazov}, \texttt{mnozstvo}, \texttt{cena\_v\_case\_objednavky} a vypočítaný medzisúčet. Celková suma sa získa agregáciou cez všetky záznamy \texttt{ObjednavkaPolozka} patriace k danej objednávke. Následne sa vytvorí nový záznam v tabuľke \texttt{Faktura} s atribútmi \texttt{id\_objednavky}, \texttt{je\_zaplatena} nastaveným na \texttt{TRUE} a \texttt{sposob\_platby}. V tabuľke \texttt{Objednavka} sa aktualizuje \texttt{stav} na \texttt{zaplatena} a v tabuľke \texttt{Stol} sa \texttt{stav} príslušného stola aktualizuje na \texttt{volny}.
-
+    Zákazník zvolí spôsob platby a zaplatí cez terminál pri stole. \\
+    \textit{Dátová vrstva:} Systém zostaví súhrn z tabuľky \texttt{ObjednavkaPolozka} prepojenej s \texttt{PolozkaMenu} --- pre každú položku sa vráti \texttt{nazov}, \texttt{mnozstvo} a \texttt{cena\_v\_case\_objednavky}. Vytvorí sa záznam v \texttt{Faktura} s \texttt{je\_zaplatena = TRUE} a \texttt{sposob\_platby}. V \texttt{Objednavka} sa nastaví \texttt{stav = zaplatena} a v \texttt{Stol} sa nastaví \texttt{stav = volny}.
+ 
     \item \textbf{Zákazník zanechá recenziu} \\
-    Po zaplatení systém vyzve zákazníka na hodnotenie. Zákazník zadá hodnotenie (1-5) a komentár. \\
-    \textit{Dátová vrstva:} Systém overí v tabuľke \texttt{Recenzia}, že pre dané \texttt{id\_objednavky} ešte žiadny záznam neexistuje. Ak podmienka platí, vytvorí sa nový záznam s atribútmi \texttt{id\_objednavky}, \texttt{hodnotenie}, \texttt{komentar} a \texttt{cas}.
-
+    Po zaplatení systém vyzve zákazníka na hodnotenie. Zákazník zadá hodnotenie (1--5) a komentár. \\
+    \textit{Dátová vrstva:} V tabuľke \texttt{Recenzia} sa vytvorí záznam s atribútmi \texttt{id\_objednavky}, \texttt{hodnotenie}, \texttt{komentar} a \texttt{cas}.
+ 
 \end{enumerate}
+
 \begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{../assets/diagram2cast1}
-    \caption{Scenár č.2 - Časť 1: Otvorenie menu a potvrdenie objednávky:}
+    \caption{Scenár č.2 - Časť 1: Otvorenie menu a potvrdenie objednávky}
     \label{fig:diagram2cast1}
 \end{figure}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{../assets/diagram2cast2}
-    \caption{Scenár č.2 - Časť 2: Príprava a doručenie jedla:}
+    \caption{Scenár č.2 - Časť 2: Sledovanie stavu a doručenie jedla}
     \label{fig:diagram2cast2}
 \end{figure}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{../assets/diagram2cast3}
-    \caption{Scenár č.2 - Časť 3: Účet a platba:}
+    \caption{Scenár č.2 - Časť 3: Účet, platba a recenzia}
     \label{fig:diagram2cast3}
 \end{figure}
+
 \subsubsection*{Alternatívne toky}
 
 \begin{itemize}
@@ -351,160 +350,201 @@ do integritných obmedzení databázy.
 
 \end{itemize}
 
-We compared a few approaches before settling on the current structure.
-Table~\ref{tab:comparison} summarizes our options.
+% ─────────────────────────────────────────────────────────────────────────────
 
-% ── Tables ───────────────────────────────────────────────────────────────────
-% Use \begin{table}[H] to place the table exactly here.
-% Label it with \label{} and reference it with Table~\ref{}.
+\subsection{Scenár č.3 - Objednávka jedla s donáškou}
 
-\begin{table}[H]
+\noindent\textbf{Názov:} Objednávka jedla s donáškou \\
+\noindent\textbf{Popis:} Scenár pokrýva proces objednania jedla cez webovú stránku s doručením domov --- od prihlásenia zákazníka a výberu položiek až po doručenie kuriérom a zanechanie recenzie. \\
+\noindent\textbf{Aktér:} Zákazník, Kuriér
+
+\subsubsection*{Hlavný tok}
+
+\begin{enumerate}
+
+    \item \textbf{Zákazník sa prihlási do systému} \\
+    Zákazník navštívi webovú stránku a prihlási sa svojím e-mailom a heslom. \\
+    \textit{Dátová vrstva:} V tabuľke \texttt{Zakaznik} sa vyhľadá záznam zodpovedajúci zadanému e-mailu a heslu. Ak záznam existuje, načítajú sa identifikačné údaje zákazníka (\texttt{id}, \texttt{meno}, \texttt{priezvisko}), ktoré sa používajú v ďalších krokoch scenára. Žiadne záznamy sa nevytvárajú ani nemenia.
+
+    \item \textbf{Zákazník si prezrie menu a vyberie položky} \\
+    Zákazník si prezrie dostupné položky, pridá ich do košíka a zadá doručovaciu adresu. \\
+    \textit{Dátová vrstva:} Z tabuľky \texttt{PolozkaMenu} sa načítajú všetky dostupné položky --- pre každú sa získa \texttt{nazov}, \texttt{popis}, \texttt{aktualna\_cena} a \texttt{kategoria}. Zobrazia sa iba položky, ktoré sú označené ako dostupné. Košík je dočasne udržiavaný v pamäti aplikácie až do potvrdenia objednávky.
+
+    \item \textbf{Zákazník potvrdí objednávku} \\
+    Zákazník skontroluje obsah košíka a potvrdí objednávku s doručovacou adresou. \\
+    \textit{Dátová vrstva:} Do tabuľky \texttt{Objednavka} sa vytvorí nový záznam so \texttt{stavom} nastaveným na \texttt{nova} a aktuálnym časom vytvorenia. Tento záznam slúži ako centrálny bod pre ostatné tabuľky. Do tabuľky \texttt{DeliveryObjednavka} sa vytvorí záznam prepájajúci objednávku so zákazníkom a jeho doručovacou adresou (\texttt{mesto}, \texttt{ulica}). Pole pre kuriéra zostáva prázdne a doplní sa neskôr. Pre každú položku z košíka sa do tabuľky \texttt{ObjednavkaPolozka} vytvorí samostatný záznam obsahujúci \texttt{id\_objednavky}, \texttt{id\_polozky}, \texttt{mnozstvo}, \texttt{stav} nastavený na \texttt{nova} a \texttt{cena\_v\_case\_objednavky} skopírovanú z aktuálnej ceny položky menu.
+
+    \item \textbf{Zákazník sleduje stav objednávky} \\
+    Zákazník môže priebežne kontrolovať stav svojej objednávky. \\
+    \textit{Dátová vrstva:} Z tabuľky \texttt{Objednavka} sa načíta aktuálny \texttt{stav} konkrétnej objednávky identifikovanej jej \texttt{id}. Stav prechádza životným cyklom\footnote{Stavový cyklus objednávky je implementovaný ako konečný stavový automat, ktorý povoľuje len definované prechody medzi stavmi.}: \texttt{nova} $\rightarrow$ \texttt{pripravuje\_sa} $\rightarrow$ \texttt{dorucuje\_sa}. Táto operácia sa môže opakovať viackrát, žiadne záznamy nevznikajú ani sa nemenia.
+
+    \item \textbf{Kuriér doručí objednávku} \\
+    Kuriér odovzdá objednávku zákazníkovi na adrese a potvrdí doručenie v systéme. \\
+    \textit{Dátová vrstva:} V tabuľke \texttt{Objednavka} sa \texttt{stav} aktualizuje na \texttt{dorucena}, čím sa uzavrie životný cyklus objednávky. V tabuľke \texttt{DeliveryObjednavka} sa doplní \texttt{id\_kuriera} --- pole, ktoré bolo prázdne od kroku 3. Zákazník dostane notifikáciu o doručení.
+
+    \item \textbf{Zákazník zanechá recenziu} \\
+    Po doručení systém vyzve zákazníka na hodnotenie. Zákazník zadá hodnotenie (1--5) a komentár. \\
+    \textit{Dátová vrstva:} V tabuľke \texttt{Recenzia} sa vytvorí nový záznam s atribútmi \texttt{id\_objednavky}, \texttt{hodnotenie}, \texttt{komentar} a \texttt{cas}.
+
+\end{enumerate}
+
+\begin{figure}[H]
     \centering
-    \caption{Comparison of template approaches}
-    \label{tab:comparison}
-    \begin{tabular}{l c c c}
-        \toprule
-        \textbf{Approach} & \textbf{Easy to edit} & \textbf{Bilingual} & \textbf{Compiles anywhere} \\
-        \midrule
-        Word document     & yes                   & manual             & n/a                        \\
-        Markdown + Pandoc & yes                   & no                 & maybe                      \\
-        \LaTeX{} template & yes                   & yes                & yes                        \\
-        \bottomrule
-    \end{tabular}
-\end{table}
+    \includegraphics[width=0.85\textwidth]{../assets/diagram3cast1}
+    \caption{Scenár č.3 - Časť 1: Prihlásenie, výber položiek a potvrdenie objednávky}
+    \label{fig:diagram3cast1}
+\end{figure}
 
-We chose \LaTeX{} because it handles structured documents, citations,
-and cross-references well --- things that matter when writing technical
-reports\footnote{It also looks way better than a Word document. But we are
-    biased.}. Unrelated: the wood frog can survive being frozen solid for months ---
-its heart stops, it stops breathing, and in spring it just thaws and hops away.
-We found this less stressful than debugging \LaTeX{} table alignment.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{../assets/diagram3cast2}
+    \caption{Scenár č.3 - Časť 2: Sledovanie stavu, doručenie a recenzia}
+    \label{fig:diagram3cast2}
+\end{figure}
 
+\subsubsection*{Alternatívne toky}
+
+\begin{itemize}
+
+    \item \textbf{Alt. A - Zákazník nie je prihlásený (krok 1)} \\
+    V tabuľke \texttt{Zakaznik} sa nenájde žiadny záznam zodpovedajúci zadaným prihlasovacím údajom. Systém zobrazí chybovú hlášku „Nesprávny e-mail alebo heslo". Zákazník môže skúsiť znova alebo sa zaregistrovať.
+
+    \item \textbf{Alt. B - Položka nie je dostupná (krok 2)} \\
+    Položky s príznakom nedostupnosti sa pri načítaní tabuľky \texttt{PolozkaMenu} jednoducho nezobrazia. Zákazník si vyberie inú položku z menu.
+
+    \item \textbf{Alt. C - Zákazník zruší objednávku (kroky 3--4)} \\
+    Zrušenie je možné iba ak \texttt{stav} záznamu v tabuľke \texttt{Objednavka} je ešte \texttt{nova}. V tabuľke \texttt{Objednavka} sa \texttt{stav} zmení na \texttt{zrusena}. V tabuľke \texttt{ObjednavkaPolozka} sa \texttt{stav} zmení na \texttt{zrusena} pre všetky položky danej objednávky. Záznamy sa nevymažú\footnote{Namiesto fyzického vymazania sa používa logické zrušenie záznamu, aby bola zachovaná auditná stopa a historické dáta.} --- zachováva sa história.
+
+    \item \textbf{Alt. D - Zákazník nechce zanechať recenziu (krok 6)} \\
+    Zákazník preskočí výzvu, žiadny záznam v tabuľke \texttt{Recenzia} sa nevytvorí. Scenár končí po kroku 5.
+
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+
+\newpage
+\subsection{Scenár č.4 - Príprava a výdaj jedla zamestnancami}
+
+\noindent\textbf{Názov:} Príprava a výdaj jedla zamestnancami \\
+\noindent\textbf{Popis:} Scenár pokrýva proces spracovania objednávky zo strany kuchyne a čašníka --- od zobrazenia novej objednávky kuchárovi, cez jej prípravu, až po fyzické doručenie jedla zákazníkovi čašníkom. \\
+\noindent\textbf{Aktér:} Kuchár, Čašník, Zákazník\footnotemark
+\footnotetext{Zákazník nie je priamym aktérom scenára, vystupuje iba ako vedľajší účastník procesu.}
+
+\subsubsection*{Hlavný tok}
+
+\begin{enumerate}
+
+    \item \textbf{Kuchár uvidí novú objednávku} \\
+    Po potvrdení objednávky zákazníkom sa táto automaticky zobrazí v kuchynskom systéme. \\
+    \textit{Dátová vrstva:} Z tabuľky \texttt{Objednavka} sa načítajú všetky záznamy so \texttt{stavom = nova}, prepojené s tabuľkou \texttt{ObjednavkaPolozka} cez \texttt{id\_objednavky}. Pre každú položku sa získa \texttt{id\_polozky} a \texttt{mnozstvo}. Kuchár vidí zoznam položiek bez osobných údajov zákazníka.
+
+    \item \textbf{Kuchár prevezme objednávku} \\
+    Kuchár označí objednávku ako prevzatú a začne s prípravou. \\
+    \textit{Dátová vrstva:} V tabuľke \texttt{Objednavka} sa \texttt{stav} aktualizuje na \texttt{pripravuje\_sa}. Ostatní kuchári vidia, že objednávka je už spracovávaná.
+
+    \item \textbf{Kuchár dokončí prípravu} \\
+    Po dokončení prípravy všetkých položiek kuchár označí objednávku ako hotovú. \\
+    \textit{Dátová vrstva:} V tabuľke \texttt{Objednavka} sa \texttt{stav} aktualizuje na \texttt{hotova}. Systém notifikuje čašníka priradeného k danému stolu.
+
+    \item \textbf{Čašník doručí jedlo zákazníkovi} \\
+    Čašník si v systéme skontroluje, ktoré objednávky sú hotové a prinesie ich k príslušnému stolu. \\
+    \textit{Dátová vrstva:} Z tabuľky \texttt{Objednavka} sa načítajú záznamy so \texttt{stavom = hotova} prepojené s tabuľkou \texttt{DineInObjednavka} cez \texttt{id\_objednavky}, aby čašník vedel číslo stola. Po doručení každej položky čašník aktualizuje \texttt{stav} príslušného záznamu v tabuľke \texttt{ObjednavkaPolozka} na \texttt{dorucena}.
+
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{../assets/diagram4cast1}
+    \caption{Scenár č.4 - Príprava objednávky kuchárom a výdaj čašníkom}
+    \label{fig:diagram4cast1}
+\end{figure}
+
+\subsubsection*{Alternatívne toky}
+
+\begin{itemize}
+
+    \item \textbf{Alt. A - Položka nie je možné pripraviť (krok 2)} \\
+    Kuchár zistí, že niektorú položku nie je možné pripraviť (napr. došla surovina). V tabuľke \texttt{ObjednavkaPolozka} sa \texttt{stav} danej položky zmení na \texttt{zrusena}. Ak sú zrušené všetky položky, aktualizuje sa aj \texttt{stav} záznamu v tabuľke \texttt{Objednavka} na \texttt{zrusena}. Čašník informuje zákazníka.
+
+    \item \textbf{Alt. B - Čašník nenájde zákazníka pri stole (krok 4)} \\
+    Pri doručení čašník zistí, že stôl je prázdny. Položky zostávajú v stave \texttt{hotova} v tabuľke \texttt{ObjednavkaPolozka}. Čašník situáciu rieši manuálne --- buď počká, alebo eskaluje na manažéra.
+
+\end{itemize}
 
 \newpage
 \section{Návrh relačného modelu}
 \label{sec:rm_design}
 
-The template lives in a simple directory structure with localization files
-separated from the main document. Switching language requires changing one
-line:
-
-% ── Code listings ────────────────────────────────────────────────────────────
-% Use lstlisting for short code snippets.
-
-\begin{lstlisting}[language=TeX, caption={Switching language in the preamble}]
-% English
-\input{lang/en}
-
-% Slovak
-\input{lang/sk}
-\end{lstlisting}
-
-For SQL or other languages, change the \texttt{language} parameter:
-
-\begin{lstlisting}[language=SQL, caption={Example SQL query}]
-SELECT s.name, COUNT(*) AS submission_count
-FROM students s
-JOIN submissions sub ON s.id = sub.student_id
-GROUP BY s.name
-ORDER BY submission_count DESC;
-\end{lstlisting}
-
-% ── Inline code ──────────────────────────────────────────────────────────────
-% Use \texttt{} for inline code: \texttt{SELECT * FROM ...}
-
-References to tables, figures, and sections are automatic. For example,
-this is Section~\ref{sec:rm_design}, the comparison is in
-Table~\ref{tab:comparison}, and the faculty logo is shown in
-Figure~\ref{fig:logo} in Attachment~\ref{sec:attachments}.
-If you add or reorder content, the numbers update on the next build.
-
-% ── Citations ────────────────────────────────────────────────────────────────
-% Add entries to references.bib, then cite them with \cite{key}.
-% The bibliography at the end is generated automatically.
-
-The database fundamentals referenced throughout the course are covered
-in \cite{elmasri2016}. For PostgreSQL-specific syntax, see
-\cite{postgresql-docs}.
-
-
 \newpage
 \section{Zhodnotenie}
 \label{sec:conclusion}
 
-The main challenge was keeping the template simple enough that a student
-seeing \LaTeX{} for the first time would not immediately close the file.
-We solved this by limiting the preamble to essential packages and
-putting all examples in one place --- this document.
-
-We also learned that BibTeX interprets \texttt{@} signs in comments as
-entry types, which caused confusing errors. Small things like this are
-easy to fix once you know about them, but hard to debug the first time\footnote{A
-    group of frogs is called an ``army.'' A group of students debugging BibTeX at
-    2\,AM is called ``Tuesday.''}.
-
-
-\newpage
-
-% ─── Bibliography ────────────────────────────────────────────────────────────
-\printbibliography
-
-% ─── Attachments ─────────────────────────────────────────────────────────────
 \newpage
 \appendix
 
 \section{Prílohy}
 \label{sec:attachments}
 
-% ── Figures ──────────────────────────────────────────────────────────────────
-% Use \begin{figure}[H] to place the figure exactly here.
-% Label it with \label{} and reference it with Figure~\ref{}.
-% Keep images in the assets/ directory.
+% ─── Scenár 1 ─────────────────────────────────────
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.25\textwidth]{../assets/logo}
-    \caption{Faculty logo used on the cover page}
-    \label{fig:logo}
-\end{figure}
 \begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{../assets/diagram1cast1}
     \caption{Scenár č.1 - Časť 1: Prezeranie dostupných stolov}
-    \label{fig:diagram1cast1}
 \end{figure}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{../assets/diagram1cast2}
     \caption{Scenár č.1 - Časť 2: Registrácia zákazníka a vytvorenie rezervácie}
-    \label{fig:diagram1cast2}
 \end{figure}
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{../assets/diagram1cast3}
     \caption{Scenár č.1 - Časť 3: Príchod do reštaurácie}
-    \label{fig:diagram1cast3}
 \end{figure}
 
+% ─── Scenár 2 ─────────────────────────────────────
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{../assets/diagram2cast1}
+    \caption{Scenár č.2 - Časť 1: Otvorenie menu a potvrdenie objednávky}
+\end{figure}
 
-Place your diagrams, screenshots, and other supporting images in this
-section. Reference them from the main text using
-\texttt{Figure\~{}\textbackslash ref\{fig:logo\}}.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{../assets/diagram2cast2}
+    \caption{Scenár č.2 - Časť 2: Sledovanie stavu a doručenie jedla}
+\end{figure}
 
-Some frogs can absorb water through a patch of skin on their belly called a
-``drinking patch'' --- they literally sit in puddles to hydrate. This has
-nothing to do with databases but is objectively more interesting than
-anything on this page.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{../assets/diagram2cast3}
+    \caption{Scenár č.2 - Časť 3: Účet, platba a recenzia}
+\end{figure}
 
-% You can control the image size with the width parameter:
-%   width=0.5\textwidth   ... half the page width
-%   width=5cm             ... exact size
-%   scale=0.8             ... 80% of original
+% ─── Scenár 3 ─────────────────────────────────────
 
-% To add more figures, copy the block above and change the file path,
-% caption, and label.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{../assets/diagram3cast1}
+    \caption{Scenár č.3 - Časť 1: Prihlásenie, výber položiek a potvrdenie objednávky}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{../assets/diagram3cast2}
+    \caption{Scenár č.3 - Časť 2: Sledovanie stavu, doručenie a recenzia}
+\end{figure}
+
+% ─── Scenár 4 ─────────────────────────────────────
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{../assets/diagram4cast1}
+    \caption{Scenár č.4 - Príprava objednávky kuchárom a výdaj čašníkom}
+\end{figure}
 
 \end{document}
