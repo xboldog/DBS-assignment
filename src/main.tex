@@ -536,6 +536,7 @@ hodinovaMzda     & DECIMAL(8,2)  & NOT NULL, CHECK $> 0$ \\
 odpracovanyČas   & DECIMAL(8,2)  & NOT NULL, DEFAULT 0 \\
 email            & VARCHAR(100)  & NOT NULL, UNIQUE \\
 tel              & VARCHAR(20)   & NOT NULL \\
+heslo            & VARCHAR(50)   & NOT NULL \\
 \hline
 \end{tabular}
 \caption{Tabuľka \texttt{Zamestnanec}}
@@ -564,6 +565,7 @@ meno             & VARCHAR(50)   & NOT NULL \\
 priezvisko       & VARCHAR(50)   & NOT NULL \\
 email            & VARCHAR(100)  & NOT NULL, UNIQUE \\
 tel              & VARCHAR(20)   & NOT NULL \\
+heslo            & VARCHAR(50)   & NOT NULL \\
 \hline
 \end{tabular}
 \caption{Tabuľka \texttt{Zákazník}}
@@ -647,6 +649,7 @@ Rozširuje \texttt{Objednavka} o~informáciu o~čísle stola a~priradenom čašn
 \textbf{Atribút}   & \textbf{Dátový typ} & \textbf{Obmedzenia} \\
 \hline
 id                 & INT  & PK, FK $\to$ \texttt{Objednavka(id)}, ON DELETE CASCADE \\
+id\_zakaznika       & INT           & FK $\to$ \texttt{Zákazník(id)}, ON DELETE RESTRICT\\
 cislo\_stola       & INT  & NOT NULL \\
 id\_casnika        & INT  & FK $\to$ \texttt{Zamestnanec(id)}, ON DELETE SET NULL \\
 \hline
@@ -842,6 +845,8 @@ cas                & DATETIME  & NOT NULL, DEFAULT NOW() \\
     \item \textbf{Zamestnanec} -- \textbf{DeliveryObjednavka} (1:N, voliteľné): Kuriér doručuje viacero objednávok. \texttt{id\_kuriera} je NULL až do pridelenia.
 
     \item \textbf{Zákazník} -- \textbf{DeliveryObjednavka} (1:N): Zákazník môže mať viacero donáškových objednávok. RESTRICT zabraňuje zmazaniu zákazníka s~existujúcimi objednávkami.
+
+    \item \textbf{Zákazník} -- \textbf{DineInObjednavka} (1:N): Zákazník môže mať viacero dine-in objednávok. RESTRICT zabraňuje zmazaniu zákazníka s~existujúcimi objednávkami.
 
     \item \textbf{Zákazník} -- \textbf{Rezervacia} (1:N, voliteľné): Zákazník môže vytvoriť viacero rezervácií. SET NULL zachováva historické rezervácie aj po zmazaní zákazníka.
 
