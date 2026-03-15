@@ -491,13 +491,9 @@ do integritných obmedzení databázy.
 \label{sec:rm_design}
 
 Relačný model je navrhnutý ako fyzický model databázy v~UML notácii.
-Model obsahuje celkovo 10~tabuliek, z~čoho 5~je plnohodnotných entitných tabuliek
-(\texttt{Zamestnanec}, \texttt{Zákazník}, \texttt{Rezervacia}, \texttt{Faktura}, \texttt{Recenzia}),
+Model obsahuje celkovo 10~tabuliek, z~čoho 7~je plnohodnotných entitných tabuliek
 pričom ďalšie skupiny tabuliek sú navrhnuté tak, aby každá plnila samostatnú
-a~zmysluplnú rolu: skupina pre správu objednávok
-(\texttt{Objednavka}, \texttt{DineInObjednavka}, \texttt{DeliveryObjednavka})
-a~skupina pre správu menu
-(\texttt{PolozkaMenu}, \texttt{ObjednavkaPolozka}).
+a~zmysluplnú rolu.
 Každá z~týchto tabuliek má vlastnú štruktúru, primárny kľúč a~jasne vymedzenú
 zodpovednosť, čo spĺňa požiadavku minimálne 6~plnohodnotných tabuliek.
 Diagram modelu je uvedený nižšie a~tiež priložený samostatne vo formáte PNG v~prílohách (pozri Prílohy).
@@ -846,7 +842,7 @@ cas                & DATETIME  & NOT NULL, DEFAULT NOW() \\
 
     \item \textbf{Zákazník} -- \textbf{DeliveryObjednavka} (1:N): Zákazník môže mať viacero donáškových objednávok. RESTRICT zabraňuje zmazaniu zákazníka s~existujúcimi objednávkami.
 
-    \item \textbf{Zákazník} -- \textbf{DineInObjednavka} (1:N): Zákazník môže mať viacero dine-in objednávok. RESTRICT zabraňuje zmazaniu zákazníka s~existujúcimi objednávkami.
+    \item \textbf{Zákazník} -- \textbf{DineInObjednavka} (1:N, voliteľné): Zákazník môže mať viacero dine-in objednávok. RESTRICT zabraňuje zmazaniu zákazníka s~existujúcimi objednávkami.
 
     \item \textbf{Zákazník} -- \textbf{Rezervacia} (1:N, voliteľné): Zákazník môže vytvoriť viacero rezervácií. SET NULL zachováva historické rezervácie aj po zmazaní zákazníka.
 
