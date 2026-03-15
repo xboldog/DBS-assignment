@@ -35,10 +35,6 @@
 % ─── Language (swap to lang/sk for Slovak) ───────────────────────────────────
 \input{lang/sk}
 
-% ─── Helper: breakable hyperref+texttt link ──────────────────────────────────
-% Usage: \texttt{DisplayText}  (allows line-breaking inside \texttt hyperlinks)
-% \tref removed — links caused line-breaking issues; using plain \texttt below
-
 % ─── Appendix figure counter (A, B, C, …) ────────────────────────────────────
 \newcounter{appendixfig}
 \newcommand{\appendixfigure}[3]{%
@@ -523,7 +519,7 @@ a~personálnych záznamov bez potreby samostatných tabuliek pre každý typ zam
 \hline
 \textbf{Atribút} & \textbf{Dátový typ} & \textbf{Obmedzenia} \\
 \hline
-id               & INT           & PK, AUTO\_INCREMENT \\
+id               & SERIAL        & PK \\
 meno             & VARCHAR(50)   & NOT NULL \\
 priezvisko       & VARCHAR(50)   & NOT NULL \\
 typ              & ENUM          & NOT NULL --- \texttt{casnik}, \texttt{kuchar}, \texttt{kurier}, \texttt{manazer} \\
@@ -555,7 +551,7 @@ rezervácie. Evidujú sa kontaktné údaje potrebné pre identifikáciu a~doruč
 \hline
 \textbf{Atribút} & \textbf{Dátový typ} & \textbf{Obmedzenia} \\
 \hline
-id               & INT           & PK, AUTO\_INCREMENT \\
+id               & SERIAL        & PK \\
 meno             & VARCHAR(50)   & NOT NULL \\
 priezvisko       & VARCHAR(50)   & NOT NULL \\
 email            & VARCHAR(100)  & NOT NULL, UNIQUE \\
@@ -584,9 +580,9 @@ v~\texttt{ObjednavkaPolozka} pri každej objednávke.
 \hline
 \textbf{Atribút}   & \textbf{Dátový typ} & \textbf{Obmedzenia} \\
 \hline
-id                 & INT            & PK, AUTO\_INCREMENT \\
+id                 & SERIAL         & PK \\
 nazov              & VARCHAR(100)   & NOT NULL \\
-popis              & TEXT(512)      & \\
+popis              & TEXT           & \\
 aktualna\_cena     & DECIMAL(8,2)   & NOT NULL, CHECK $> 0$ \\
 kategoria          & ENUM           & NOT NULL --- \texttt{jedlo}, \texttt{napoj}, \texttt{dezert}, \ldots \\
 je\_dostupna       & BOOLEAN        & NOT NULL, DEFAULT TRUE \\
@@ -614,9 +610,9 @@ v~\texttt{DineInObjednavka} alebo \texttt{DeliveryObjednavka}.
 \hline
 \textbf{Atribút}    & \textbf{Dátový typ} & \textbf{Obmedzenia} \\
 \hline
-id                  & INT            & PK, AUTO\_INCREMENT \\
+id                  & SERIAL         & PK \\
 stav                & ENUM           & NOT NULL --- \texttt{nova}, \texttt{pripravuje\_sa}, \texttt{hotova}, \texttt{zaplatena}, \texttt{dorucena}, \texttt{zrusena} \\
-cas\_vytvorenia     & DATETIME       & NOT NULL, DEFAULT NOW() \\
+cas\_vytvorenia     & TIMESTAMP      & NOT NULL, DEFAULT NOW() \\
 \hline
 \end{tabular}
 \caption{Tabuľka \texttt{Objednavka}}
@@ -708,7 +704,7 @@ Ukladá snímku ceny v~čase objednávky a~individuálny stav každej položky,
 \hline
 \textbf{Atribút}            & \textbf{Dátový typ} & \textbf{Obmedzenia} \\
 \hline
-id\_objednavkaPolozka       & INT           & PK, AUTO\_INCREMENT \\
+id\_objednavkaPolozka       & SERIAL        & PK \\
 id\_objednavky              & INT           & FK $\to$ \texttt{Objednavka(id)}, ON DELETE CASCADE, NOT NULL \\
 id\_polozky                 & INT           & FK $\to$ \texttt{PolozkaMenu(id)}, ON DELETE RESTRICT, NOT NULL \\
 mnozstvo                    & INT           & NOT NULL, CHECK $> 0$ \\
@@ -742,7 +738,7 @@ prekrývať rovnaký stôl v~rovnakom čase.
 \hline
 \textbf{Atribút}   & \textbf{Dátový typ} & \textbf{Obmedzenia} \\
 \hline
-id                 & INT         & PK, AUTO\_INCREMENT \\
+id                 & SERIAL      & PK \\
 id\_zakaznika      & INT         & FK $\to$ \texttt{Zákazník(id)}, ON DELETE SET NULL \\
 cislo\_stola       & INT         & NOT NULL \\
 datum              & DATE        & NOT NULL \\
@@ -779,7 +775,7 @@ objednávky do stavu \texttt{zaplatena}.
 \hline
 \textbf{Atribút}   & \textbf{Dátový typ} & \textbf{Obmedzenia} \\
 \hline
-id                 & INT           & PK, AUTO\_INCREMENT \\
+id                 & SERIAL        & PK \\
 id\_objednavky     & INT           & FK $\to$ \texttt{Objednavka(id)}, ON DELETE RESTRICT, UNIQUE, NOT NULL \\
 je\_zaplatena      & BOOLEAN       & NOT NULL, DEFAULT FALSE \\
 sposob\_platby     & ENUM          & NOT NULL --- \texttt{hotovost}, \texttt{karta}, \texttt{online} \\
@@ -808,11 +804,11 @@ Prepojenie priamo na objednávku zabraňuje viacnásobnému hodnoteniu tej istej
 \hline
 \textbf{Atribút}   & \textbf{Dátový typ} & \textbf{Obmedzenia} \\
 \hline
-id                 & INT       & PK, AUTO\_INCREMENT \\
+id                 & SERIAL    & PK \\
 id\_objednavky     & INT       & FK $\to$ \texttt{Objednavka(id)}, ON DELETE RESTRICT, UNIQUE, NOT NULL \\
 hodnotenie         & INT       & NOT NULL, CHECK BETWEEN 1 AND 5 \\
-komentar           & TEXT(512) & \\
-cas                & DATETIME  & NOT NULL, DEFAULT NOW() \\
+komentar           & TEXT      & \\
+cas                & TIMESTAMP & NOT NULL, DEFAULT NOW() \\
 \hline
 \end{tabular}
 \caption{Tabuľka \texttt{Recenzia}}
