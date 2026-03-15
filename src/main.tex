@@ -532,7 +532,7 @@ hodinovaMzda     & DECIMAL(8,2)  & NOT NULL, CHECK $> 0$ \\
 odpracovanyČas   & DECIMAL(8,2)  & NOT NULL, DEFAULT 0 \\
 email            & VARCHAR(100)  & NOT NULL, UNIQUE \\
 tel              & VARCHAR(20)   & NOT NULL \\
-heslo            & VARCHAR(50)   & NOT NULL \\
+heslo            & VARCHAR(64)   & NOT NULL \\
 \hline
 \end{tabular}
 \caption{Tabuľka \texttt{Zamestnanec}}
@@ -561,7 +561,7 @@ meno             & VARCHAR(50)   & NOT NULL \\
 priezvisko       & VARCHAR(50)   & NOT NULL \\
 email            & VARCHAR(100)  & NOT NULL, UNIQUE \\
 tel              & VARCHAR(20)   & NOT NULL \\
-heslo            & VARCHAR(50)   & NOT NULL \\
+heslo            & VARCHAR(64)   & NOT NULL \\
 \hline
 \end{tabular}
 \caption{Tabuľka \texttt{Zákazník}}
