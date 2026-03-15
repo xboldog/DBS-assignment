@@ -131,7 +131,7 @@ zodpovednosti a úroveň prístupu.
     \item \textbf{Čašník} je zamestnanec zodpovedný za priamu obsluhu 
     zákazníkov pri stoloch. Spravuje priradenie zákazníkov k stolom, zadáva 
     a modifikuje objednávky v mene zákazníka a iniciuje platobný proces. 
-    Má prístup k zoznamu stolov a ich stavom a k aktívnym objednávkam.
+    Má prístup k aktívnym objednávkam.
 
     \item \textbf{Kuchár} prijíma objednávky zaradené do frontu a zodpovedá 
     za ich prípravu. Jeho úlohou v systéme je zmeniť stav objednávky 
@@ -244,7 +244,7 @@ do integritných obmedzení databázy.
 
     \item \textbf{Zákazník si prezerá dostupné stoly} \\
     Zákazník navštívi webovú stránku reštaurácie a zvolí dátum a čas. \\
-    \textit{Dátová vrstva:} V tabuľke \texttt{Rezervacia} sa vyhľadajú všetky záznamy pre zvolený dátum. Pre každé \texttt{cislo\_stola} sa overuje, či v zadanom časovom okne neexistuje žiadna rezervácia s prekrývajúcim sa intervalom (\texttt{stav} $\neq$ \texttt{zrusena}). Zákazníkovi sa vrátia čísla stolov, pre ktoré táto podmienka platí.
+    \textit{Dátová vrstva:} V tabuľke \texttt{Rezervacia} sa vyhľadajú všetky záznamy pre zvolený dátum. Pre každé \texttt{cislo\_stola} sa overuje, či v zadanom časovom okne neexistuje žiadna rezervácia s prekrývajúcim sa intervalom. Zákazníkovi sa vrátia čísla stolov, pre ktoré táto podmienka platí.
 
     \item \textbf{Zákazník sa zaregistruje} \\
     Zákazník klikne na \textit{„Zaregistrovať"} a zadá svoje údaje. \\
@@ -262,14 +262,14 @@ do integritných obmedzení databázy.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.75\textwidth]{../assets/diagram1cast1}
+    \includegraphics[width=0.7\textwidth]{../assets/diagram1cast1}
     \caption{Scenár č.1 - Časť 1: Prezeranie dostupných stolov}
     \label{fig:diagram1cast1}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.75\textwidth]{../assets/diagram1cast2}
+    \includegraphics[width=0.7\textwidth]{../assets/diagram1cast2}
     \caption{Scenár č.1 - Časť 2: Registrácia zákazníka a vytvorenie rezervácie}
     \label{fig:diagram1cast2}
 \end{figure}
@@ -587,7 +587,7 @@ v~\texttt{ObjednavkaPolozka} pri každej objednávke.
 \hline
 id                 & INT            & PK, AUTO\_INCREMENT \\
 nazov              & VARCHAR(100)   & NOT NULL \\
-popis              & TEXT           & \\
+popis              & TEXT(512)      & \\
 aktualna\_cena     & DECIMAL(8,2)   & NOT NULL, CHECK $> 0$ \\
 kategoria          & ENUM           & NOT NULL --- \texttt{jedlo}, \texttt{napoj}, \texttt{dezert}, \ldots \\
 je\_dostupna       & BOOLEAN        & NOT NULL, DEFAULT TRUE \\
@@ -811,7 +811,7 @@ Prepojenie priamo na objednávku zabraňuje viacnásobnému hodnoteniu tej istej
 id                 & INT       & PK, AUTO\_INCREMENT \\
 id\_objednavky     & INT       & FK $\to$ \texttt{Objednavka(id)}, ON DELETE RESTRICT, UNIQUE, NOT NULL \\
 hodnotenie         & INT       & NOT NULL, CHECK BETWEEN 1 AND 5 \\
-komentar           & TEXT      & \\
+komentar           & TEXT(512) & \\
 cas                & DATETIME  & NOT NULL, DEFAULT NOW() \\
 \hline
 \end{tabular}
