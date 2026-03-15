@@ -9,7 +9,7 @@
 \usepackage[margin=2.5cm]{geometry}
 \usepackage{graphicx}
 \usepackage{hyperref}
-\usepackage{microtype}   % better line-breaking (protrusion + expansion)
+\usepackage{microtype}      % better line-breaking (protrusion + expansion)
 \usepackage{booktabs}       % nicer tables (\toprule, \midrule, \bottomrule)
 \usepackage{float}          % [H] placement for figures and tables
 \usepackage{xcolor}         % colors (used by listings)
@@ -161,8 +161,7 @@ Systém eviduje niekoľko kľúčových entít, ktoré spoločne pokrývajú cel
 \begin{itemize}
 
     \item \textbf{Zákazník} reprezentuje identitu osoby interagujúcej 
-    so systémom. Evidujeme jeho osobné a kontaktné údaje vrátane doručovacej 
-    adresy, ktorá je nevyhnutná pre objednávky typu delivery.
+    so systémom. Evidujeme jeho osobné a kontaktné údaje, ktoré sú nevyhnutné pre objednávky typu delivery.
 
     \item \textbf{Zamestnanec} zastupuje všetkých pracovníkov reštaurácie. 
     Rola je evidovaná ako atribút zamestnanca, čo zjednodušuje správu 
@@ -315,7 +314,7 @@ do integritných obmedzení databázy.
  
     \item \textbf{Zákazník dostane objednávku} \\
     Zákazník sleduje stav objednávky na termináli. Keď je objednávka pripravená, čašník ju prinesie na stôl. \\
-    \textit{Dátová vrstva:} Z tabuľky \texttt{Objednavka} sa načíta aktuálny \texttt{stav} podľa \texttt{id} objednávky. Žiadne záznamy sa nevytvárajú ani nemenia.
+    \textit{Dátová vrstva:} Z tabuľky \texttt{Objednavka} sa načíta aktuálny \texttt{stav} podľa \texttt{id} objednávky. Žiadne záznamy sa nevytvárajú.
  
     \item \textbf{Zákazník zaplatí} \\
     Zákazník zvolí spôsob platby a zaplatí cez terminál pri stole. \\
@@ -390,7 +389,7 @@ do integritných obmedzení databázy.
 
     \item \textbf{Zákazník sleduje stav objednávky} \\
     Zákazník môže priebežne kontrolovať stav svojej objednávky. \\
-    \textit{Dátová vrstva:} Z tabuľky \texttt{Objednavka} sa načíta aktuálny \texttt{stav} konkrétnej objednávky identifikovanej jej \texttt{id}. Stav prechádza životným cyklom\footnote{Stavový cyklus objednávky je implementovaný ako konečný stavový automat, ktorý povoľuje len definované prechody medzi stavmi.}: \texttt{nova} $\rightarrow$ \texttt{pripravuje\_sa} $\rightarrow$ \texttt{dorucuje\_sa}. Táto operácia sa môže opakovať viackrát, žiadne záznamy nevznikajú ani sa nemenia.
+    \textit{Dátová vrstva:} Z tabuľky \texttt{Objednavka} sa načíta aktuálny \texttt{stav} konkrétnej objednávky identifikovanej jej \texttt{id}. Stav prechádza životným cyklom\footnote{Stavový cyklus objednávky je implementovaný ako konečný stavový automat, ktorý povoľuje len definované prechody medzi stavmi.}: \texttt{nova} $\rightarrow$ \texttt{pripravuje\_sa} $\rightarrow$ \texttt{dorucuje\_sa}. Táto operácia sa môže opakovať viackrát, žiadne záznamy nevznikajú.
 
     \item \textbf{Kuriér doručí objednávku} \\
     Kuriér odovzdá objednávku zákazníkovi na adrese a potvrdí doručenie v systéme. \\
@@ -597,7 +596,8 @@ je\_dostupna       & BOOLEAN        & NOT NULL, DEFAULT TRUE \\
 \end{table}
 
 \noindent\textbf{Primárny kľúč:} Umelý (\texttt{id}). \\
-\textbf{Cudzie kľúče:} Žiadne.
+\textbf{Cudzie kľúče:} Žiadne --- tabuľku referujú:
+\texttt{ObjednavkaPolozka}.
 
 % ── Objednavka ───────────────────────────────────────────
 \subsubsection{Objednavka}
@@ -855,7 +855,7 @@ cas                & DATETIME  & NOT NULL, DEFAULT NOW() \\
 \subsection{Zabezpečenie integritných obmedzení}
 
 \begin{itemize}
-    \item \textbf{Exkluzivita rezervácií} --- kontrola prekrývania časových intervalov pre dané \texttt{cislo\_stola} a~dátum v~tabuľke \texttt{Rezervacia} je implementovaná na aplikačnej vrstve (prípadne databázovým triggerom).
+    \item \textbf{Exkluzivita rezervácií} --- kontrola prekrývania časových intervalov pre dané \texttt{cislo\_stola} a~dátum v~tabuľke \texttt{Rezervacia} je implementovaná na aplikačnej vrstve.
 
     \item \textbf{Podmienka vytvorenia dine-in objednávky} --- pred vytvorením záznamu
     v~\texttt{DineInObjednavka} systém overí v~\texttt{Rezervacia},
