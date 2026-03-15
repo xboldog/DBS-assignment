@@ -216,10 +216,10 @@ do integritných obmedzení databázy.
     \item \textbf{Dostupnosť položiek menu} --- položku menu nie je 
     možné zaradiť do objednávky, ak má atribút \texttt{je\_dostupna = FALSE}.
 
-    \item \textbf{Obmedzenie vzdialenosti doručenia} --- objednávku typu 
-    delivery nie je možné vytvoriť, ak doručovacia adresa presahuje 
-    maximálnu prípustnú vzdialenosť\footnote{Hodnota je definovaná konfiguráciou systému a môže byť napríklad 5--10 km od prevádzky.}. Táto hodnota je konfigurovateľná 
-    manažérom.
+    \item \textbf{Povinnosť adresy pre delivery objednávku} --- objednávku typu 
+    delivery nie je možné vytvoriť bez vyplnenej doručovacej adresy. 
+    Toto je zabezpečené obmedzeniami \texttt{NOT NULL} na atribútoch \texttt{mesto} 
+    a \texttt{ulica} v tabuľke \texttt{DeliveryObjednavka} na databázovej úrovni.
 
     \item \textbf{Jedinečnosť recenzie} --- zákazník môže zanechať najviac 
     jednu recenziu na jednu objednávku. Duplicita sa vynucuje unikátnym 
@@ -864,9 +864,11 @@ cas                & DATETIME  & NOT NULL, DEFAULT NOW() \\
 
     \item \textbf{Podmienka uzavretia objednávky} --- objednávka nemôže prejsť do stavu \texttt{zaplatena} bez záznamu v~\texttt{Faktura} s~\texttt{je\_zaplatena = TRUE}. Implementované stavovým automatom v~aplikačnej vrstve.
 
-    \item \textbf{Jedinečnosť recenzie} --- UNIQUE obmedzenie na \texttt{Recenzia.id\_objednavky} zabraňuje duplicitným hodnoteniam na databázovej úrovni.
+    \item \textbf{Dostupnosť položiek menu} --- podmienka je zabezpečená atribútom \texttt{je\_dostupna} v~tabuľke \texttt{PolozkaMenu}. Aplikačná vrstva pri zostavovaní objednávky načítava iba položky, kde \texttt{je\_dostupna = TRUE}, čím sa na úrovni dopytu vylúčia nedostupné položky.
 
-    \item \textbf{Snímka ceny} --- atribút \texttt{cena\_v\_case\_objednavky} v~\texttt{ObjednavkaPolozka} uchováva cenu platnú v~čase objednávky, čím historické záznamy zostávajú konzistentné aj po zmene ceny v~menu.
+    \item \textbf{Povinnosť adresy pre delivery objednávku} --- obmedzenia \texttt{NOT NULL} na atribútoch \texttt{mesto} a~\texttt{ulica} v~tabuľke \texttt{DeliveryObjednavka} zaručujú, že objednávku typu delivery nie je možné vytvoriť bez vyplnenej doručovacej adresy. Implementované priamo na databázovej úrovni.
+
+    \item \textbf{Jedinečnosť recenzie} --- UNIQUE obmedzenie na \texttt{Recenzia.id\_objednavky} zabraňuje duplicitným hodnoteniam na databázovej úrovni.
 \end{itemize}
 
 % ----------------------------------------------------------

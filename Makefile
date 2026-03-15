@@ -1,4 +1,6 @@
-.PHONY: build clean
+.PHONY: all build clean
+
+all: build clean
 
 build:
 	cd src && pdflatex main.tex && bibtex main && pdflatex main.tex && pdflatex main.tex
