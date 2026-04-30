@@ -526,7 +526,7 @@ typ              & ENUM          & NOT NULL --- \texttt{casnik}, \texttt{kuchar}
 hodinovaMzda     & DECIMAL(8,2)  & NOT NULL, CHECK $> 0$ \\
 odpracovanyČas   & DECIMAL(8,2)  & NOT NULL, DEFAULT 0 \\
 email            & VARCHAR(100)  & NOT NULL, UNIQUE \\
-tel              & VARCHAR(20)   & NOT NULL \\
+tel              & VARCHAR(20)   & NOT NULL, UNIQUE \\
 heslo            & VARCHAR(64)   & NOT NULL \\
 \hline
 \end{tabular}
@@ -555,7 +555,7 @@ id               & SERIAL        & PK \\
 meno             & VARCHAR(50)   & NOT NULL \\
 priezvisko       & VARCHAR(50)   & NOT NULL \\
 email            & VARCHAR(100)  & NOT NULL, UNIQUE \\
-tel              & VARCHAR(20)   & NOT NULL \\
+tel              & VARCHAR(20)   & NOT NULL, UNIQUE \\
 heslo            & VARCHAR(64)   & NOT NULL \\
 \hline
 \end{tabular}
@@ -611,7 +611,7 @@ v~\texttt{DineInObjednavka} alebo \texttt{DeliveryObjednavka}.
 \textbf{Atribút}    & \textbf{Dátový typ} & \textbf{Obmedzenia} \\
 \hline
 id                  & SERIAL         & PK \\
-stav                & ENUM           & NOT NULL --- \texttt{nova}, \texttt{pripravuje\_sa}, \texttt{hotova}, \texttt{zaplatena}, \texttt{dorucena}, \texttt{zrusena} \\
+stav                & ENUM           & NOT NULL, DEFAULT \texttt{nova} --- \texttt{nova}, \texttt{pripravuje\_sa}, \texttt{hotova}, \texttt{zaplatena}, \texttt{dorucena}, \texttt{dorucuje\_sa}, \texttt{zrusena} \\
 cas\_vytvorenia     & TIMESTAMP      & NOT NULL, DEFAULT NOW() \\
 \hline
 \end{tabular}
@@ -708,7 +708,7 @@ id\_objednavkaPolozka       & SERIAL        & PK \\
 id\_objednavky              & INT           & FK $\to$ \texttt{Objednavka(id)}, ON DELETE CASCADE, NOT NULL \\
 id\_polozky                 & INT           & FK $\to$ \texttt{PolozkaMenu(id)}, ON DELETE RESTRICT, NOT NULL \\
 mnozstvo                    & INT           & NOT NULL, CHECK $> 0$ \\
-stav                        & ENUM          & NOT NULL --- \texttt{nova}, \texttt{pripravuje\_sa}, \texttt{dorucena}, \texttt{zrusena} \\
+stav                        & ENUM          & NOT NULL, DEFAULT \texttt{nova} --- \texttt{nova}, \texttt{pripravuje\_sa}, \texttt{dorucena}, \texttt{zrusena} \\
 cena\_v\_case\_objednavky   & DECIMAL(8,2)  & NOT NULL \\
 \hline
 \end{tabular}
@@ -745,7 +745,7 @@ datum              & DATE        & NOT NULL \\
 cas\_zaciatku      & TIME        & NOT NULL \\
 cas\_konca         & TIME        & NOT NULL, CHECK $>$ \texttt{cas\_zaciatku} \\
 pocet\_osob        & INT         & NOT NULL, CHECK $> 0$ \\
-stav               & ENUM        & NOT NULL --- \texttt{potvrdena}, \texttt{aktivna}, \texttt{ukoncena}, \texttt{zrusena} \\
+stav               & ENUM        & NOT NULL, DEFAULT \texttt{potvrdena} --- \texttt{potvrdena}, \texttt{aktivna}, \texttt{ukoncena}, \texttt{zrusena} \\
 \hline
 \end{tabular}
 \caption{Tabuľka \texttt{Rezervacia}}
