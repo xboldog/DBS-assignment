@@ -34,24 +34,32 @@ N_OBJEDNAVKA    = 4_000     # celkový počet objednávok (dine-in + delivery)
 # Pomery typov objednávok
 DINE_IN_RATIO   = 0.60      # 60 % dine-in, 40 % delivery
 
-# Podiel zaplatených objednávok (z nezrušených)
-ZAPLATENA_RATIO = 0.87
-
 # Podiel recenzií (z objednávok s faktúrou)
 RECENZIA_RATIO  = 0.32
-
-# Zrušenie: ~8 % objednávok
-ZRUSENA_RATIO   = 0.08
 
 # Váhy zákazníkov – mocninová distribúcia (niektorí objednávajú oveľa viac)
 ZAKAZNIK_POWER  = 1.5
 
-# Rozsah dátumov objednávok (posledné 2 roky)
-DATE_FROM = date(2023, 1, 1)
-DATE_TO   = date(2025, 12, 31)
+# Rozsah dátumov (od 2024 do júna 2026)
+DATE_FROM = date(2024, 1, 1)
+DATE_TO   = date(2026, 6, 30)
+
+# Simulovaný "aktuálny deň" – odovzdávame v nedeľu, ale pracujeme akoby bolo 3.5.2026.
+# Pred TODAY → finálne stavy (ukončená/zaplatená/zrušená)
+# = TODAY    → môžu byť všetky stavy (vrátane aktívnych/rozpracovaných)
+# > TODAY    → len budúce stavy (potvrdená/zrušená pre rezervácie, žiadne objednávky)
+TODAY = date(2026, 5, 3)
 
 # Čísla stolov v reštaurácii
 TABLE_NUMBERS = list(range(1, 21))   # stoly 1–20
+
+# Počet aktívnych rezervácií na TODAY – maximálne počet stolov (20),
+# realistický počet ~8–12 aby reštaurácia "žila", ale nebola preplnená
+N_AKTIVNE_REZERVACIE = 10
+
+# Počet objednávok vytvorených presne na TODAY (so zmiešanými stavmi).
+# Zvyšné objednávky sa rozložia do minulosti (DATE_FROM .. TODAY-1).
+N_OBJEDNAVKY_DNES = 120
 
 # =============================================================================
 # Inicializácia
@@ -85,6 +93,17 @@ def rand_time_slot():
         # večera: 17:00 – 21:00
         h = random.randint(17, 20)
         m = random.choice([0, 15, 30, 45])
+    return time(h, m)
+
+def rand_time_slot_aktivna():
+    """
+    Čas začiatku pre aktívnu rezerváciu na TODAY (~10:30).
+    Rezervácia musí byť už začatá (začiatok pred 10:30)
+    a ešte neukončená (koniec po 10:30).
+    Začiatok: 9:00 – 10:15, koniec: 11:00 – 13:00.
+    """
+    h = random.randint(9, 10)
+    m = random.choice([0, 15, 30]) if h < 10 else random.choice([0, 15])
     return time(h, m)
 
 def rand_date(from_: date, to_: date) -> date:
@@ -192,23 +211,93 @@ def gen_polozka_menu(n: int) -> list[dict]:
 
 
 def gen_rezervacia(n: int, zakaznik_ids: list) -> list[dict]:
-    rows = []
-    for _ in range(n):
-        zac = rand_time_slot()
-        # Trvanie 1–3 hodiny
-        koniec_min = zac.hour * 60 + zac.minute + random.randint(60, 180)
-        koniec_min = min(koniec_min, 23 * 60)       # max 23:00
-        koniec = time(koniec_min // 60, koniec_min % 60)
+    """
+    Rezervácie:
+      - dátum < TODAY            → 'ukoncena' alebo 'zrusena'
+      - dátum = TODAY (3.5.2026) → môžu byť všetky stavy: 'aktivna', 'potvrdena',
+                                   'ukoncena', 'zrusena'. Aktívnych je presne
+                                   N_AKTIVNE_REZERVACIE, každá na inom stole
+                                   (nemôžu sa prekrývať).
+      - dátum > TODAY            → 'potvrdena' alebo 'zrusena'
+    """
+    # Vygeneruj n dátumov a zoraď ich vzostupne.
+    # Časť dátumov tlačíme priamo na TODAY, aby tam vznikol viditeľný "dnešný" deň.
+    total_days = (DATE_TO - DATE_FROM).days
+    raw_dates = [
+        DATE_FROM + timedelta(days=random.randint(0, total_days))
+        for _ in range(n - 25)
+    ]
+    # Pridaj 25 rezervácií presne na TODAY (z toho bude 10 aktívnych + zvyšok mix).
+    raw_dates += [TODAY] * 25
+    sorted_dates = sorted(raw_dates)
 
-        d = rand_date(DATE_FROM, DATE_TO)
-        stav = random.choices(
-            ["potvrdena", "aktivna", "ukoncena", "zrusena"],
-            weights=[5, 5, 75, 15]
-        )[0]
+    # Aktívne stoly použité na TODAY – aby sa nezhodovali (žiadne dva aktívne na rovnakom)
+    aktivne_stoly_pouzite: set = set()
+    aktivne_count = 0
+
+    rows = []
+    for d in sorted_dates:
+        cislo_stola = random.choice(TABLE_NUMBERS)
+
+        if d < TODAY:
+            # Minulosť → finálne stavy
+            zac = rand_time_slot()
+            koniec_min = zac.hour * 60 + zac.minute + random.randint(60, 180)
+            koniec_min = min(koniec_min, 23 * 60)
+            koniec = time(koniec_min // 60, koniec_min % 60)
+            stav = random.choices(
+                ["ukoncena", "zrusena"],
+                weights=[85, 15]
+            )[0]
+        elif d == TODAY:
+            # Dnes → mix všetkých stavov, ale aktívnych presne N_AKTIVNE_REZERVACIE
+            # a každá na inom stole.
+            kandidat = random.choices(
+                ["aktivna", "potvrdena", "ukoncena", "zrusena"],
+                weights=[40, 30, 20, 10]
+            )[0]
+            if kandidat == "aktivna":
+                if (aktivne_count < N_AKTIVNE_REZERVACIE
+                        and cislo_stola not in aktivne_stoly_pouzite):
+                    stav = "aktivna"
+                    aktivne_stoly_pouzite.add(cislo_stola)
+                    aktivne_count += 1
+                    # Aktívna rezervácia: začala pred 10:30, ešte stále trvá
+                    zac = rand_time_slot_aktivna()
+                    # Koniec: 11:00 – 13:00 (zaručene po 10:30)
+                    koniec_h = random.randint(11, 12)
+                    koniec_m = random.choice([0, 15, 30, 45])
+                    koniec = time(koniec_h, koniec_m)
+                else:
+                    # Už máme dosť aktívnych alebo stôl je obsadený → pretypuj
+                    stav = random.choices(
+                        ["potvrdena", "ukoncena", "zrusena"],
+                        weights=[50, 30, 20]
+                    )[0]
+                    zac = rand_time_slot()
+                    koniec_min = zac.hour * 60 + zac.minute + random.randint(60, 180)
+                    koniec_min = min(koniec_min, 23 * 60)
+                    koniec = time(koniec_min // 60, koniec_min % 60)
+            else:
+                stav = kandidat
+                zac = rand_time_slot()
+                koniec_min = zac.hour * 60 + zac.minute + random.randint(60, 180)
+                koniec_min = min(koniec_min, 23 * 60)
+                koniec = time(koniec_min // 60, koniec_min % 60)
+        else:
+            # Budúcnosť → potvrdená alebo zrušená
+            zac = rand_time_slot()
+            koniec_min = zac.hour * 60 + zac.minute + random.randint(60, 180)
+            koniec_min = min(koniec_min, 23 * 60)
+            koniec = time(koniec_min // 60, koniec_min % 60)
+            stav = random.choices(
+                ["potvrdena", "zrusena"],
+                weights=[88, 12]
+            )[0]
 
         rows.append({
             "id_zakaznika": random.choice(zakaznik_ids),
-            "cislo_stola":  random.choice(TABLE_NUMBERS),
+            "cislo_stola":  cislo_stola,
             "datum":        d,
             "cas_zaciatku": zac,
             "cas_konca":    koniec,
@@ -229,7 +318,17 @@ def gen_objednavky(
     """
     Vráti tuple:
       (objednavky, dine_in, delivery, polozky, faktury, recenzie)
-    Každý prvok je zoznam slovníkov.
+
+    Pravidlá:
+      - Žiadne objednávky po TODAY (nemôžeme objednať do budúcnosti).
+      - Pred TODAY: stav 'zaplatena' (finálny). Položky 'dorucena' (~3 %
+        môže byť individuálne 'zrusena' – realistický rozptyl). Každá
+        objednávka má presne 1 faktúru s je_zaplatena=TRUE.
+      - Na TODAY: mix všetkých stavov pre objednávku aj položky.
+        Faktúra môže byť je_zaplatena=FALSE alebo úplne chýbať
+        (ak objednávka ešte nie je zaplatená/doručená).
+      - DineInObjednavka + DeliveryObjednavka = Objednavka (1:1, presne jeden typ).
+      - Recenzie len pre objednávky s faktúrou; čas recenzie ∈ (cas_obj, TODAY].
     """
     casnici = [z["id"] for z in zamestnanec_rows if z["typ"] == "casnik"]
     kurieri = [z["id"] for z in zamestnanec_rows if z["typ"] == "kurier"]
@@ -250,33 +349,69 @@ def gen_objednavky(
     objednavka_id  = 1
     polozka_row_id = 1
     faktura_id     = 1
-    recenzia_id    = 1
 
-    for i in range(n):
+    # Rozdelenie: N - N_OBJEDNAVKY_DNES do minulosti, N_OBJEDNAVKY_DNES na TODAY.
+    n_dnes = min(N_OBJEDNAVKY_DNES, n)
+    n_pred = n - n_dnes
+
+    # Časy pre minulosť: zaručíme aspoň 1 objednávku na každý deň [DATE_FROM, TODAY-1],
+    # aby v tabuľke neboli medzery. Zvyšné objednávky rozložíme náhodne.
+    last_past_day = TODAY - timedelta(days=1)
+    past_days = [DATE_FROM + timedelta(days=d)
+                 for d in range((last_past_day - DATE_FROM).days + 1)]
+
+    timestamps: list[datetime] = []
+
+    # 1 garantovaná objednávka na každý deň
+    for d in past_days:
+        mins_in_day = random.randint(0, 12 * 60 - 1)   # 10:00–22:59
+        ts = datetime(d.year, d.month, d.day, 10, 0) + timedelta(minutes=mins_in_day)
+        timestamps.append(ts)
+
+    # Zvyšné minulé objednávky náhodne rozložené
+    n_extra = n_pred - len(past_days)
+    if n_extra > 0:
+        for _ in range(n_extra):
+            d = random.choice(past_days)
+            mins_in_day = random.randint(0, 12 * 60 - 1)
+            ts = datetime(d.year, d.month, d.day, 10, 0) + timedelta(minutes=mins_in_day)
+            timestamps.append(ts)
+
+    # Časy pre TODAY: úzke 45-minútové okno (10:00–10:44).
+    # Prvá a posledná pripravuje_sa sa líšia max o 44 minút, nie hodiny.
+    today_dt = datetime(TODAY.year, TODAY.month, TODAY.day, 10, 0)
+    for _ in range(n_dnes):
+        mins = random.randint(0, 44)   # 10:00–10:44
+        timestamps.append(today_dt + timedelta(minutes=mins))
+
+    # Spoločne zoradiť podľa času (minulosť aj dnešok plynule rastú v ID)
+    timestamps.sort()
+
+    for i, ts in enumerate(timestamps):
         zak_id = customer_pool[i]
-        ts     = datetime(
-            random.randint(DATE_FROM.year, DATE_TO.year),
-            random.randint(1, 12),
-            random.randint(1, 28),
-            random.randint(10, 22),
-            random.randint(0, 59),
-        )
+        ts_date = ts.date()
 
         is_dine_in = random.random() < DINE_IN_RATIO
-        is_zrusena = random.random() < ZRUSENA_RATIO
 
-        if is_zrusena:
-            stav = "zrusena"
-        elif is_dine_in:
+        # ---- STAV OBJEDNÁVKY ----
+        if ts_date < TODAY:
+            # Minulosť → finálny stav: zaplatená alebo zrušená (~8 %)
             stav = random.choices(
-                ["hotova", "zaplatena", "pripravuje_sa"],
-                weights=[10, 80, 10]
+                ["zaplatena", "zrusena"],
+                weights=[92, 8]
             )[0]
         else:
-            stav = random.choices(
-                ["dorucena", "dorucuje_sa", "pripravuje_sa"],
-                weights=[80, 10, 10]
-            )[0]
+            # ts_date == TODAY → zmiešané stavy podľa typu
+            if is_dine_in:
+                stav = random.choices(
+                    ["nova", "pripravuje_sa", "hotova", "zaplatena", "zrusena"],
+                    weights=[12, 22, 18, 38, 10]
+                )[0]
+            else:
+                stav = random.choices(
+                    ["nova", "pripravuje_sa", "dorucuje_sa", "dorucena", "zrusena"],
+                    weights=[12, 22, 18, 38, 10]
+                )[0]
 
         objednavky.append({
             "id":             objednavka_id,
@@ -284,67 +419,163 @@ def gen_objednavky(
             "cas_vytvorenia": ts,
         })
 
+        # ---- TYP OBJEDNÁVKY (presne jeden, dineIn + delivery = total) ----
         if is_dine_in:
             dine_in.append({
-                "id":          objednavka_id,
+                "id":           objednavka_id,
                 "id_zakaznika": zak_id if random.random() > 0.15 else None,
-                "cislo_stola": random.choice(TABLE_NUMBERS),
-                "id_casnika":  random.choice(casnici) if casnici else None,
+                "cislo_stola":  random.choice(TABLE_NUMBERS),
+                "id_casnika":   random.choice(casnici) if casnici else None,
             })
         else:
+            # Pravidlo pre kuriéra:
+            #   - minulé 'zaplatena'                        → kuriér MUSÍ byť priradený
+            #   - minulé 'zrusena'                          → ~50 % NULL (zrušené pred pridelením)
+            #   - dnešné 'dorucena' / 'dorucuje_sa'         → kuriér MUSÍ byť priradený
+            #   - dnešné 'nova' / 'pripravuje_sa'           → kuriér ešte väčšinou NIE JE pridelený (NULL)
+            #   - dnešné 'zrusena'                          → môže byť NULL (zrušené pred pridelením)
+            if ts_date < TODAY:
+                # Minulosť: zaplatená → kuriér MUSÍ byť; zrušená → môže byť NULL
+                if stav == "zrusena":
+                    id_kuriera = random.choice(kurieri) if kurieri and random.random() > 0.5 else None
+                else:
+                    id_kuriera = random.choice(kurieri) if kurieri else None
+            elif stav in ("dorucena", "dorucuje_sa"):
+                id_kuriera = random.choice(kurieri) if kurieri else None
+            elif stav in ("nova", "pripravuje_sa"):
+                # Väčšinou NULL (kuchár ešte vyrába, kuriér čaká)
+                id_kuriera = random.choice(kurieri) if kurieri and random.random() > 0.75 else None
+            else:  # 'zrusena' na TODAY
+                id_kuriera = random.choice(kurieri) if kurieri and random.random() > 0.6 else None
+
             delivery.append({
-                "id":          objednavka_id,
+                "id":           objednavka_id,
                 "id_zakaznika": zak_id,
-                "id_kuriera":  random.choice(kurieri) if kurieri and random.random() > 0.1 else None,
-                "mesto":       fake.city(),
-                "ulica":       fake.street_address(),
+                "id_kuriera":   id_kuriera,
+                "mesto":        fake.city(),
+                "ulica":        fake.street_address(),
             })
+
+        # ---- STAV POLOŽKY (striktne odvodený od stavu objednávky) ----
+        # Pravidlá (kuchár pridáva stav, keď pripravuje):
+        #   objednavka 'nova'                            → položky všetky 'nova'
+        #   objednavka 'pripravuje_sa'                   → položky 'nova' alebo 'pripravuje_sa'
+        #   objednavka 'hotova'/'zaplatena'/'dorucena'/'dorucuje_sa'
+        #                                                → položky 'dorucena' (občas individuálne 'zrusena')
+        #   objednavka 'zrusena'                         → položky všetky 'zrusena'
+        if stav == "nova":
+            stav_pol_provider = lambda: "nova"
+        elif stav == "pripravuje_sa":
+            stav_pol_provider = lambda: random.choices(
+                ["pripravuje_sa", "nova"], weights=[60, 40]
+            )[0]
+        elif stav in ("hotova", "zaplatena", "dorucena", "dorucuje_sa"):
+            # Väčšina dorucena, ~3 % individuálne zrušené
+            stav_pol_provider = lambda: "dorucena" if random.random() > 0.03 else "zrusena"
+        else:  # 'zrusena'
+            stav_pol_provider = lambda: "zrusena"
 
         # Položky objednávky: 1–5, váhovo skôr 2–3
         n_pol = random.choices([1, 2, 3, 4, 5], weights=[10, 35, 35, 15, 5])[0]
         vybrane = random.sample(dostupne_ids, min(n_pol, len(dostupne_ids)))
 
-        stav_pol = "zrusena" if is_zrusena else "dorucena"
         for pid in vybrane:
             polozky.append({
-                "id":                      polozka_row_id,
-                "id_objednavky":           objednavka_id,
+                "id":                     polozka_row_id,
+                "id_objednavky":          objednavka_id,
                 "id_polozky":             pid,
                 "mnozstvo":               random.randint(1, 3),
-                "stav":                   stav_pol,
+                "stav":                   stav_pol_provider(),
                 "cena_v_case_objednavky": polozka_ceny[pid],
             })
             polozka_row_id += 1
 
-        # Faktúra – len pre zaplatené / doručené objednávky
-        je_dokoncena = stav in ("zaplatena", "dorucena")
-        if je_dokoncena and random.random() < ZAPLATENA_RATIO:
-            faktury.append({
-                "id":            faktura_id,
-                "id_objednavky": objednavka_id,
-                "je_zaplatena":  True,
-                "sposob_platby": random.choices(
-                    ["hotovost", "karta", "online"],
-                    weights=[20, 55, 25]
-                )[0],
-            })
+        # ---- FAKTÚRA ----
+        ma_fakturu = False
+        if ts_date < TODAY:
+            # Pred TODAY: zaplatené → faktúra zaplatená; zrušené → bez faktúry
+            if stav == "zaplatena":
+                faktury.append({
+                    "id":            faktura_id,
+                    "id_objednavky": objednavka_id,
+                    "je_zaplatena":  True,
+                    "sposob_platby": random.choices(
+                        ["hotovost", "karta", "online"],
+                        weights=[20, 55, 25]
+                    )[0],
+                })
+                faktura_id += 1
+                ma_fakturu = True
+            # stav == "zrusena" → bez faktúry (ma_fakturu zostáva False)
+        else:
+            # TODAY:
+            # - 'zaplatena' / 'dorucena' → faktúra je_zaplatena=TRUE
+            # - 'pripravuje_sa', 'hotova', 'dorucuje_sa' → ~50 % má faktúru je_zaplatena=FALSE
+            # - 'nova', 'zrusena' → bez faktúry
+            if stav in ("zaplatena", "dorucena"):
+                faktury.append({
+                    "id":            faktura_id,
+                    "id_objednavky": objednavka_id,
+                    "je_zaplatena":  True,
+                    "sposob_platby": random.choices(
+                        ["hotovost", "karta", "online"],
+                        weights=[20, 55, 25]
+                    )[0],
+                })
+                faktura_id += 1
+                ma_fakturu = True
+            elif stav in ("pripravuje_sa", "hotova", "dorucuje_sa"):
+                if random.random() < 0.5:
+                    faktury.append({
+                        "id":            faktura_id,
+                        "id_objednavky": objednavka_id,
+                        "je_zaplatena":  False,
+                        "sposob_platby": random.choices(
+                            ["hotovost", "karta", "online"],
+                            weights=[20, 55, 25]
+                        )[0],
+                    })
+                    faktura_id += 1
+                    ma_fakturu = True
+            # 'nova' a 'zrusena' → ma_fakturu zostáva False
 
-            # Recenzia – len pre objednávky s faktúrou
-            if random.random() < RECENZIA_RATIO:
+        # ---- RECENZIA ---- (len pre minulé objednávky s faktúrou)
+        # Recenzia môže prísť hocikedy medzi objednávkou a TODAY (vrátane).
+        if ts_date < TODAY and ma_fakturu and random.random() < RECENZIA_RATIO:
+            min_rec = ts + timedelta(hours=1)
+            max_rec = min(ts + timedelta(days=14),
+                          datetime.combine(TODAY, time(22, 0)))
+            if max_rec > min_rec:
+                delta_s = int((max_rec - min_rec).total_seconds())
+                cas_rec = min_rec + timedelta(seconds=random.randint(0, delta_s))
                 recenzie.append({
-                    "id":            recenzia_id,
+                    "id":            None,   # priradíme po finálnom zoradení
                     "id_objednavky": objednavka_id,
                     "hodnotenie":    random.choices(
                         [1, 2, 3, 4, 5],
                         weights=[3, 5, 15, 40, 37]
                     )[0],
                     "komentar":      fake.sentence(nb_words=10) if random.random() > 0.3 else None,
-                    "cas":           ts + timedelta(minutes=random.randint(5, 120)),
+                    "cas":           cas_rec,
                 })
-                recenzia_id += 1
-            faktura_id += 1
 
         objednavka_id += 1
+
+    # Recenzie zoradiť chronologicky podľa času a prečíslovať ID (logické poradie).
+    recenzie.sort(key=lambda r: r["cas"])
+    for idx, r in enumerate(recenzie, start=1):
+        r["id"] = idx
+
+    # ---- Obranné kontroly invariantov ----
+    assert len(dine_in) + len(delivery) == len(objednavky), (
+        f"DineIn ({len(dine_in)}) + Delivery ({len(delivery)}) "
+        f"!= Objednavka ({len(objednavky)})"
+    )
+    din_ids = {r["id"] for r in dine_in}
+    del_ids = {r["id"] for r in delivery}
+    assert not (din_ids & del_ids), "Objednávka v DineIn aj Delivery súčasne!"
+    assert (din_ids | del_ids) == {r["id"] for r in objednavky}, \
+        "Objednávka bez záznamu v DineIn/Delivery!"
 
     return objednavky, dine_in, delivery, polozky, faktury, recenzie
 
