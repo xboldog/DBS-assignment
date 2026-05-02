@@ -256,7 +256,3 @@ CREATE INDEX idx_objednavka_cas_vytvorenia
 -- Proces 2 – join Faktura → Objednavka pri filtrovaní zaplatených objednávok
 CREATE INDEX idx_faktura_zaplatena
     ON Faktura (je_zaplatena);
-
--- =============================================================================
--- Koniec schema.sql
--- =============================================================================
