@@ -231,10 +231,11 @@ Proces pokrýva príchod zákazníka s rezerváciou a vytvorenie objednávky pri
 číslo stola, zákazník, dátum a čas príchodu, čašník a tri objednávané položky s množstvami.
 Výstupom je detail vytvorenej objednávky alebo zoznam validačných chýb.
 
-Proces overuje existenciu zákazníka, potvrdenú rezerváciu v danom časovom okne, rolu čašníka a
-dostupnosť všetkých položiek menu. Ak všetky kontroly prejdú, v jednom SQL príkaze sa aktivuje
-rezervácia a vložia sa záznamy do \texttt{Objednavka}, \texttt{DineInObjednavka} a
-\texttt{ObjednavkaPolozka}.
+Proces overuje, že pre daný stôl, zákazníka, dátum a čas existuje potvrdená rezervácia a že všetky
+objednávané položky menu existujú, sú dostupné a majú kladné množstvo. Ak kontroly prejdú, v jednom
+SQL príkaze sa aktivuje rezervácia a vložia sa záznamy do \texttt{Objednavka},
+\texttt{DineInObjednavka} a \texttt{ObjednavkaPolozka}. Referenčnú integritu zákazníka a čašníka
+následne chránia cudzie kľúče fyzického modelu.
 
 \subsection*{Väzba na scenár zo Zadania 1}
 
@@ -245,38 +246,39 @@ dine-in objednávky, kontrolu dostupných položiek menu a uloženie snímky cen
 
 \subsection*{SQL implementácia}
 
-Implementácia je v súbore \texttt{queries.sql}. Parametre a vstupné položky sa na začiatku uložia do
-krátkych dočasných tabuliek, aby sa neopakovali vo všetkých dotazoch. Samotná validácia a zápisy
-používajú \texttt{UPDATE}, \texttt{INSERT ... SELECT} a vnorené subqueries. Nepoužíva PL/pgSQL blok
-\texttt{DO}, vlastné uložené funkcie, procedúry, triggery ani kurzory.
+Implementácia je v súbore \texttt{queries.sql}. Proces nepoužíva dočasné tabuľky, PL/pgSQL blok
+\texttt{DO}, vlastné uložené funkcie, procedúry, triggery ani kurzory. Celý zápis je jeden SQL
+statement. CTE sa používajú iba tam, kde sú potrebné na spoločné vstupy alebo na reťazenie
+\texttt{UPDATE}/\texttt{INSERT ... RETURNING}; kontrola položiek menu je riešená cez vnorené
+subqueries.
 Nasledujúci výpis je skrátená kostra; úplná spustiteľná verzia je v súbore \texttt{queries.sql}.
 
 \begin{lstlisting}
-BEGIN;
-
-CREATE TEMP TABLE tmp_p1_params ON COMMIT DROP AS
-SELECT vstupne_parametre;
-
-CREATE TEMP TABLE tmp_p1_items ON COMMIT DROP AS
-SELECT polozka_id, mnozstvo
-FROM vstupne_polozky;
-
-CREATE TEMP TABLE tmp_p1_errors ON COMMIT DROP AS
-SELECT sprava
-FROM validacne_kontroly
-WHERE pravidlo_neplati;
-
-CREATE TEMP TABLE tmp_p1_order ON COMMIT DROP AS
-SELECT nextval('objednavka_id_seq')::INT AS id_objednavky
-WHERE NOT EXISTS (SELECT 1 FROM tmp_p1_errors);
-
--- nasleduju INSERTy do Objednavka, DineInObjednavka a ObjednavkaPolozka
--- a UPDATE potvrdenej rezervacie na stav aktivna
-
-SELECT vysledok, sprava
-FROM vystup_procesu;
-
-COMMIT;
+WITH
+params AS (...),
+input_items(polozka_id, mnozstvo) AS (...),
+valid_reservation AS (...),
+activated_reservation AS (
+    UPDATE Rezervacia
+    SET stav = 'aktivna'
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM input_items
+        WHERE mnozstvo <= 0 OR polozka_nie_je_dostupna
+    )
+    RETURNING id
+),
+inserted_order AS (
+    INSERT INTO Objednavka (cas_vytvorenia)
+    SELECT datum + cas_prichodu
+    FROM params
+    WHERE EXISTS (SELECT 1 FROM activated_reservation)
+    RETURNING id, stav, cas_vytvorenia
+),
+inserted_dine_in AS (...),
+inserted_items AS (...)
+SELECT *
+FROM vysledok_procesu;
 \end{lstlisting}
 
 \subsection*{Ukážka spustenia}
@@ -309,16 +311,17 @@ Cappuccino & nova & 2 & 7.64 \\
 
 \subsection*{Zdôvodnenie korektnosti}
 
-Objednávka sa vloží iba vtedy, keď dočasná tabuľka \texttt{tmp\_p1\_errors} ostane prázdna.
-Všetky zápisy sú v jednej transakcii, takže nevznikne situácia, že sa vytvorí iba časť objednávky.
+Objednávka sa vloží iba vtedy, keď CTE \texttt{activated\_reservation} vráti riadok. Toto CTE vráti
+riadok len pri nájdenej potvrdenej rezervácii a zároveň pri absencii neplatnej alebo nedostupnej
+položky. Nadväzujúce \texttt{INSERT} CTE sú preto prázdne, ak validácia neprejde. Keďže všetky zápisy
+sú súčasťou jedného SQL statementu, nevznikne situácia, že by sa vytvorila iba časť objednávky.
 Snímka ceny sa berie z aktuálnej ceny v \texttt{PolozkaMenu} v momente vytvorenia objednávky.
 
 \subsection*{Indexy podporujúce proces}
 
 \begin{itemize}
-    \item \texttt{idx\_rezervacia\_stol\_datum} podporuje hľadanie rezervácie podľa stola, dátumu a stavu.
-    \item \texttt{idx\_polozka\_dostupna} podporuje filtrovanie dostupných položiek menu.
-    \item \texttt{idx\_objednavkapolozka\_objednavka} zrýchľuje načítanie položiek vytvorenej objednávky.
+    \item \texttt{idx\_rezervacia\_stol\_datum} podporuje hľadanie potvrdenej rezervácie podľa stola, dátumu a stavu.
+    \item \texttt{idx\_polozka\_dostupna} podporuje filtrovanie dostupného menu; pri kontrole konkrétnej položky podľa ID môže databáza použiť aj primárny kľúč \texttt{PolozkaMenu.id}.
 \end{itemize}
 
 \clearpage
@@ -352,6 +355,7 @@ FROM Objednavka o
 JOIN Faktura f ON f.id_objednavky = o.id AND f.je_zaplatena = TRUE
 JOIN DineInObjednavka d ON d.id = o.id
 JOIN ObjednavkaPolozka op ON op.id_objednavky = o.id
+                          AND op.stav <> 'zrusena'
 WHERE o.stav <> 'zrusena'
 GROUP BY o.id, o.cas_vytvorenia, d.id_casnika;
 
@@ -374,6 +378,8 @@ FROM (
         FROM Recenzia r
         JOIN Objednavka o ON o.id = r.id_objednavky
         JOIN DineInObjednavka d ON d.id = o.id
+        WHERE o.cas_vytvorenia >= '2026-01-01'
+          AND o.cas_vytvorenia <  '2027-01-01'
         GROUP BY d.id_casnika
     ) h ON h.id_casnika = s.id_casnika
 ) w
@@ -409,9 +415,14 @@ nezapočítavajú. Join na \texttt{Faktura} zabezpečí, že report reprezentuje
 
 \begin{itemize}
     \item \texttt{idx\_objednavka\_cas\_vytvorenia} podporuje rozsahový filter zvoleného roka.
-    \item \texttt{idx\_faktura\_zaplatena} podporuje výber zaplatených faktúr a join na objednávku.
+    \item \texttt{idx\_faktura\_zaplatena} podporuje výber zaplatených faktúr; na aktuálnom seede však plánovač volí sekvenčný sken, keďže takmer všetky faktúry sú zaplatené.
     \item \texttt{idx\_objednavkapolozka\_objednavka} podporuje agregáciu položiek podľa objednávky.
 \end{itemize}
+
+Kontrola cez \texttt{EXPLAIN (ANALYZE, BUFFERS)} nad seed dátami potvrdila použitie indexu nad
+dátumom vytvorenia objednávky pri filtrovaní roka 2026 a indexu nad cudzím kľúčom položiek pri
+pripájaní položiek objednávky. Pri tabuľke \texttt{Faktura} plánovač zvolil sekvenčný sken, pretože
+filter \texttt{je\_zaplatena = TRUE} v seede vyberá takmer všetky riadky.
 
 \clearpage
 \section{Výkonnosť a indexy}
@@ -442,10 +453,11 @@ CREATE INDEX idx_polozka_dostupna
 \end{lstlisting}
 
 Index podporuje proces 1 pri validácii, že objednávané položky menu existujú a sú dostupné.
-Dopyt používa podmienku \texttt{je\_dostupna = TRUE}. Cieľom indexu je obmedziť skenovanie
-nedostupných položiek pri zostavovaní dostupného menu alebo pri validácii vstupu objednávky.
-Keďže tabuľka menu je v našom seede malá, optimalizátor môže aj tak zvoliť sekvenčný sken; index
-je však opodstatnený pre prípad väčšieho menu alebo častého filtrovania dostupných položiek.
+Dopyt aj pohľad \texttt{v\_dostupne\_polozky} používajú podmienku
+\texttt{je\_dostupna = TRUE}. Pri overení konkrétnej položky objednávky je však v predikáte aj
+\texttt{PolozkaMenu.id}, takže databáza môže namiesto tohto indexu použiť primárny kľúč nad
+\texttt{id} a dostupnosť skontrolovať až filtrom. Index je preto najvhodnejší pre časté filtrovanie
+dostupného menu; pri malej tabuľke menu môže optimalizátor zvoliť aj sekvenčný sken.
 
 \subsection*{\texttt{idx\_objednavkapolozka\_objednavka}}
 
@@ -454,12 +466,12 @@ CREATE INDEX idx_objednavkapolozka_objednavka
     ON ObjednavkaPolozka (id_objednavky);
 \end{lstlisting}
 
-Index podporuje oba procesy. V procese 1 sa používa pri načítaní detailu novo vytvorenej
-objednávky a v procese 2 pri agregácii tržby objednávky. Dopyty často hľadajú všetky riadky
-\texttt{ObjednavkaPolozka} pre jedno konkrétne \texttt{id\_objednavky}. PostgreSQL nevytvára index
-automaticky na stĺpci cudzieho kľúča, preto je tento index vlastný. Má obmedziť sekvenčný sken
-celej tabuľky položiek objednávok a nahradiť ho indexovým vyhľadaním položiek konkrétnej
-objednávky.
+Index podporuje najmä proces 2 pri agregácii tržby objednávky, kde sa položky pripájajú cez
+\texttt{ObjednavkaPolozka.id\_objednavky}. V aktuálnej verzii procesu 1 sa detail práve vytvorenej
+objednávky skladá z CTE \texttt{inserted\_items}, takže tento index nie je potrebný na finálny výstup
+procesu 1. Ostáva však dôležitý pri bežnom neskoršom načítaní detailu objednávky podľa
+\texttt{id\_objednavky} a pri analytickom reporte. PostgreSQL nevytvára index automaticky na stĺpci
+cudzieho kľúča, preto je tento index vlastný.
 
 \subsection*{\texttt{idx\_objednavka\_cas\_vytvorenia}}
 
@@ -472,8 +484,8 @@ Index podporuje proces 2, kde manažérsky report filtruje objednávky za zvolen
 zámerne zapísaný ako rozsah:
 
 \begin{lstlisting}[language=SQL]
-WHERE o.cas_vytvorenia >= y.rok_od
-  AND o.cas_vytvorenia <  y.rok_do
+WHERE o.cas_vytvorenia >= (current_setting('myapp.p_rok') || '-01-01')::TIMESTAMP
+  AND o.cas_vytvorenia <  ((current_setting('myapp.p_rok')::INT + 1)::TEXT || '-01-01')::TIMESTAMP
 \end{lstlisting}
 
 Takýto zápis je vhodný pre B-tree index nad \texttt{cas\_vytvorenia}. Index má obmedziť
@@ -491,8 +503,10 @@ CREATE INDEX idx_faktura_zaplatena
 Index podporuje proces 2. Report má počítať iba reálne tržby, preto pohľad
 \texttt{v\_dine\_in\_trzby} joinuje tabuľku \texttt{Faktura} a filtruje
 \texttt{je\_zaplatena = TRUE}. Prvý stĺpec indexu podporuje filter zaplatených faktúr, druhý stĺpec
-podporuje následný join na \texttt{Objednavka.id}. Index má obmedziť sekvenčný sken tabuľky
-\texttt{Faktura} pri hľadaní zaplatených objednávok.
+podporuje následný join na \texttt{Objednavka.id}. Na aktuálnom seede je však hodnota
+\texttt{je\_zaplatena = TRUE} veľmi málo selektívna, pretože zaplatených je 3602 z 3621 faktúr.
+Reálny plán preto používa \texttt{Seq Scan on faktura}. Index ostáva opodstatnený pre väčšiu alebo
+vyváženejšiu produkčnú databázu, kde filter zaplatených faktúr môže znížiť počet čítaných riadkov.
 
 \subsection*{EXPLAIN porovnanie}
 
@@ -512,26 +526,23 @@ WHERE r.cislo_stola = 8
   AND r.datum = DATE '2026-05-03'
   AND TIME '13:15' BETWEEN r.cas_zaciatku AND r.cas_konca
   AND r.stav = 'potvrdena'
-ORDER BY r.id
 LIMIT 1;
 \end{lstlisting}
 
 Výrez plánu bez indexu:
 
 \begin{lstlisting}
-Limit  (actual time=0.164..0.164 rows=1 loops=1)
-  Buffers: shared hit=16
-  ->  Sort
-        Sort Key: id
-        ->  Seq Scan on rezervacia r
-              Rows Removed by Filter: 1499
-              Buffers: shared hit=13
-Planning Time: 0.531 ms
-Execution Time: 0.189 ms
+Limit  (actual time=0.237..0.237 rows=1 loops=1)
+  Buffers: shared hit=13
+  ->  Seq Scan on rezervacia r
+        Rows Removed by Filter: 1376
+        Buffers: shared hit=13
+Planning Time: 2.329 ms
+Execution Time: 0.254 ms
 \end{lstlisting}
 
 Bez indexu databáza použila \texttt{Seq Scan on rezervacia}. To znamená, že prešla všetkých
-1 500 rezervácií a 1 499 riadkov zahodila filtrom.
+1 500 rezervácií a v tomto teste zahodila 1 376 riadkov filtrom, kým našla vyhovujúcu rezerváciu.
 
 Následne sme index vytvorili znova a spustili ten istý dopyt:
 
@@ -550,33 +561,29 @@ WHERE r.cislo_stola = 8
   AND r.datum = DATE '2026-05-03'
   AND TIME '13:15' BETWEEN r.cas_zaciatku AND r.cas_konca
   AND r.stav = 'potvrdena'
-ORDER BY r.id
 LIMIT 1;
 \end{lstlisting}
 
 Výrez plánu s indexom:
 
 \begin{lstlisting}
-Limit  (actual time=0.037..0.037 rows=1 loops=1)
-  Buffers: shared hit=1 read=2
-  ->  Sort
-        Sort Key: id
-        ->  Index Scan using idx_rezervacia_stol_datum on rezervacia r
-              Index Cond: ((cislo_stola = 8)
-                           AND (datum = '2026-05-03'::date)
-                           AND (stav = 'potvrdena'::stav_rezervacie))
-              Filter: (id_zakaznika = 320
-                       AND '13:15'::time BETWEEN cas_zaciatku AND cas_konca)
-Planning Time: 0.264 ms
-Execution Time: 0.059 ms
+Limit  (actual time=0.015..0.015 rows=1 loops=1)
+  Buffers: shared hit=3
+  ->  Index Scan using idx_rezervacia_stol_datum on rezervacia r
+        Index Cond: ((cislo_stola = 8)
+                     AND (datum = '2026-05-03'::date)
+                     AND (stav = 'potvrdena'::stav_rezervacie))
+        Filter: (id_zakaznika = 320
+                 AND '13:15'::time BETWEEN cas_zaciatku AND cas_konca)
+Planning Time: 0.567 ms
+Execution Time: 0.032 ms
 \end{lstlisting}
 
 Po vytvorení indexu sa plán zmenil zo sekvenčného skenu na \texttt{Index Scan}. Databáza už
 nehľadala rezerváciu v celej tabuľke, ale použila indexovú podmienku nad stĺpcami
 \texttt{cislo\_stola}, \texttt{datum} a \texttt{stav}. Aj na relatívne malom seede klesol čas
-vykonania z približne \texttt{0.189 ms} na \texttt{0.059 ms}. Zostalo iba malé triedenie podľa
-\texttt{id}, pretože \texttt{id} nie je súčasťou indexu; triedi sa však už len veľmi malá množina
-kandidátnych riadkov.
+vykonania z približne \texttt{0.254 ms} na \texttt{0.032 ms}. Zvyšné podmienky na zákazníka a časový
+interval sa aplikujú už iba na kandidátov nájdených cez index.
 
 \clearpage
 \section{Zhodnotenie}
