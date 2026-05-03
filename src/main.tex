@@ -1,22 +1,29 @@
 %! Author = dboldog, tbubenik
-%! Date = 16/02/2026
+%! Date = 03/05/2026
 
 \documentclass[11pt, a4paper]{article}
 
-% ─── Packages ────────────────────────────────────────────────────────────────
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
+\usepackage{lmodern}
 \usepackage[margin=2.5cm]{geometry}
 \usepackage{graphicx}
 \usepackage{hyperref}
-\usepackage{microtype}      % better line-breaking (protrusion + expansion)
-\usepackage{booktabs}       % nicer tables (\toprule, \midrule, \bottomrule)
-\usepackage{float}          % [H] placement for figures and tables
-\usepackage{xcolor}         % colors (used by listings)
-\usepackage{listings}       % code listings
-\hypersetup{colorlinks=true, linkcolor=black, citecolor=black, urlcolor=blue!70!black}
+\usepackage[protrusion=true, expansion=false]{microtype}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{array}
 
-% ─── Code listing style ─────────────────────────────────────────────────────
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    citecolor=black,
+    urlcolor=blue!70!black,
+    hypertexnames=false
+}
+
 \lstset{
     basicstyle=\ttfamily\small,
     breaklines=true,
@@ -24,51 +31,33 @@
     numbers=left,
     numberstyle=\tiny\color{gray},
     xleftmargin=2em,
-    framexleftmargin=1.5em
+    framexleftmargin=1.5em,
+    columns=fullflexible
 }
-% Pro tip: for syntax highlighting, look into the 'minted' package.
 
-% ─── Bibliography ────────────────────────────────────────────────────────────
-\usepackage[style=numeric, backend=bibtex]{biblatex}
-\addbibresource{references.bib}
- 
-% ─── Language (swap to lang/sk for Slovak) ───────────────────────────────────
 \input{lang/sk}
+\graphicspath{{../assets/}}
 
-% ─── Appendix figure counter (A, B, C, …) ────────────────────────────────────
-\newcounter{appendixfig}
-\newcommand{\appendixfigure}[3]{%
-  \stepcounter{appendixfig}%
-  \begin{figure}[H]
-    \centering
-    \includegraphics[width=\textwidth]{#1}
-    \caption{Príloha \Alph{appendixfig}: #2}
-    \label{#3}
-  \end{figure}%
-}
-
-% ─── Student details ─────────────────────────────────────────────────────────
 \newcommand{\StudentName}{Dávid Boldog, Tomáš Bubeník}
 \newcommand{\StudyGroup}{Štvrtok 11:00}
 \newcommand{\TeacherName}{Ing. Matej Petrík}
-\newcommand{\AssignmentNumber}{1}
-\newcommand{\AssignmentTitle}{Reštauračný systém}
+\newcommand{\AssignmentNumber}{3}
+\newcommand{\AssignmentTitle}{Implementácia fyzického modelu a procesov}
+\newcommand{\ProjectTheme}{Reštauračný systém}
 \newcommand{\AcademicYear}{2025/2026}
 
-% =============================================================================
 \begin{document}
 
-% ─── Cover page ──────────────────────────────────────────────────────────────
 \begin{titlepage}
     \centering
 
-    \includegraphics[width=0.3\textwidth]{../assets/logo}
+    \includegraphics[width=0.3\textwidth]{logo}
 
     \vspace{0.3cm}
     {\large \LabelUniversity}\\[2pt]
     {\large \LabelFaculty}
 
-    \vspace{2.5cm}
+    \vspace{2.2cm}
     {\Huge\bfseries \LabelProtocol}
 
     \vspace{0.6cm}
@@ -76,6 +65,9 @@
 
     \vspace{0.4cm}
     {\Large \LabelAssignment{} \AssignmentNumber: \AssignmentTitle}
+
+    \vspace{0.4cm}
+    {\Large\bfseries \ProjectTheme}
 
     \vfill
 
@@ -90,875 +82,455 @@
     \vspace{1.5cm}
 \end{titlepage}
 
-% ─── Table of contents ───────────────────────────────────────────────────────
 \renewcommand{\contentsname}{\LabelContents}
 \tableofcontents
 \newpage
 
-% =============================================================================
+% Titulná stránka je kapitola 1 podľa zadania, preto číslovanie začína sekciou 2.
+\setcounter{section}{1}
 
-\section{Špecifikácia}
-\label{sec:specifikacia}
+\section{Zmeny oproti Zadaniu 1}
 
-Reštauračný systém rieši problém evidencie a riadenia prevádzkových procesov 
-v reštauračnom zariadení. Systém je určený pre reštaurácie, ktoré chcú 
-digitalizovať svoju prevádzku — od správy stolov a rezervácií až po spracovanie 
-objednávok a platieb. Jeho pridaná hodnota spočíva v tom, že zjednocuje všetky 
-prevádzkové procesy do jedného nástroja, znižuje chybovosť spôsobenú ručným 
-zadávaním, zrýchľuje obsluhu zákazníkov a poskytuje manažmentu prehľad 
-o prevádzke v reálnom čase. Systém podporuje dva prevádzkové modely --- 
-klasickú obsluhu pri stole (\textbf{dine-in}) a donáškový servis 
-(\textbf{delivery}).
+Model ostal tematicky aj vzťahovo rovnaký ako v Zadaní 1: jadrom systému je spoločná tabuľka
+\texttt{Objednavka}, ktorú špecializujú tabuľky \texttt{DineInObjednavka} a
+\texttt{DeliveryObjednavka}. Pri implementácii fyzického modelu sme doplnili konkrétne
+PostgreSQL dátové typy, ENUM hodnoty, referenčné akcie a indexy potrebné pre procesy v tomto
+zadaní.
 
-% ─────────────────────────────────────────────────────────────────────────────
-\subsection{Aktéri systému}
-
-Systém rozlišuje päť typov aktérov, pričom každý má presne vymedzenú rolu, 
-zodpovednosti a úroveň prístupu.
-
+Najdôležitejšie spresnenia voči návrhu sú:
 \begin{itemize}
-
-    \item \textbf{Zákazník} je koncový používateľ systému, ktorý vytvára 
-    rezervácie stolov, prezerá jedálniček, zadáva objednávky a realizuje 
-    platby. Má prístup výlučne k vlastným objednávkam, rezerváciám 
-    a platobným záznamom. V prípade donášky môže sledovať stav svojej 
-    objednávky a po jej doručení zanechať recenziu.
-
-    \item \textbf{Čašník} je zamestnanec zodpovedný za priamu obsluhu 
-    zákazníkov pri stoloch. Spravuje priradenie zákazníkov k stolom, zadáva 
-    a modifikuje objednávky v mene zákazníka a iniciuje platobný proces. 
-    Má prístup k aktívnym objednávkam.
-
-    \item \textbf{Kuchár} prijíma objednávky zaradené do frontu a zodpovedá 
-    za ich prípravu. Jeho úlohou v systéme je zmeniť stav objednávky 
-    z \textit{„čaká na prípravu"} na \textit{„pripravuje sa"} a po dokončení 
-    na \textit{„hotová"}. Kuchár má prístup iba k identifikátoru objednávky 
-    a zoznamu objednaných položiek --- osobné údaje zákazníka sú pre neho 
-    skryté.
-
-    \item \textbf{Manažér} má najvyššiu úroveň prístupu v systéme. 
-    Zodpovedá za správu jedálničku, kontrolu skladových zásob, správu 
-    zamestnancov a generovanie prevádzkových reportov. Môže pristupovať 
-    ku všetkým dátam v systéme.
-
-    \item \textbf{Kuriér} zabezpečuje fyzické doručenie objednávok na adresu 
-    zákazníka. Systém mu sprístupní iba informácie nevyhnutné pre doručenie 
-    --- doručovaciu adresu, spôsob platby a kontaktné údaje zákazníka. 
-    Po odovzdaní objednávky aktualizuje jej stav na \textit{„doručená"}.
-
+    \item stavové atribúty sú implementované ako PostgreSQL ENUM typy,
+    \item historická cena položky objednávky je uložená v \texttt{ObjednavkaPolozka.cena\_v\_case\_objednavky},
+    \item prekrývanie rezervácií sa nevynucuje cez \texttt{CHECK}, pretože ide o medziriadkové pravidlo; procesy ho kontrolujú dotazom,
+    \item proces vytvorenia dine-in objednávky po úspešnom overení prepne rezerváciu do stavu \texttt{aktivna}.
 \end{itemize}
 
-% ─────────────────────────────────────────────────────────────────────────────
-\subsection{Kľúčové entity}
-
-Systém eviduje niekoľko kľúčových entít, ktoré spoločne pokrývajú celý 
-životný cyklus reštauračnej prevádzky.
-
-\begin{itemize}
-
-    \item \textbf{Zákazník} reprezentuje identitu osoby interagujúcej 
-    so systémom. Evidujeme jeho osobné a kontaktné údaje, ktoré sú nevyhnutné pre objednávky typu delivery.
-
-    \item \textbf{Zamestnanec} zastupuje všetkých pracovníkov reštaurácie. 
-    Rola je evidovaná ako atribút zamestnanca, čo zjednodušuje správu 
-    prístupových práv a personálnych záznamov.
-
-    \item \textbf{Rezervácia} zachytáva plánované využitie konkrétneho stola 
-    v stanovenom časovom intervale. Je prepojená so zákazníkom (\texttt{id\_zakaznika})
-    a identifikuje stôl číslom (\texttt{cislo\_stola}). Obsahuje dátum, čas začiatku a konca.
-    Táto entita je kritická pre správne riadenie kapacity reštaurácie.
-
-    \item \textbf{Objednávka} je ústrednou entitou celého systému. Môže byť 
-    typu \textbf{dine-in} (rozšírená v \texttt{DineInObjednavka} s číslom stola a čašníkom) alebo 
-    \textbf{delivery} (rozšírená v \texttt{DeliveryObjednavka} s adresou a kuriérom). Eviduje stav 
-    spracovania a časovú pečiatku vytvorenia.
-
-    \item \textbf{Položka menu} predstavuje ponuku reštaurácie --- každé 
-    jedlo alebo nápoj s názvom, popisom, cenou a kategóriou. Systém uchováva históriu zmien cien\footnote{Cena položky je pri vytvorení objednávky uložená ako snímka hodnoty v čase objednávky v tabuľke \texttt{ObjednavkaPolozka}, aby historické objednávky zostali konzistentné aj po zmene ceny v menu.}, aby staré objednávky zostali konzistentné.
-
-    \item \textbf{Faktúra} zaznamenáva úhradu spojenú s konkrétnou 
-    objednávkou. Eviduje spôsob platby a stav zaplatenia.
-
-    \item \textbf{Recenzia} umožňuje zákazníkovi ohodnotiť skúsenosť po 
-    dokončení objednávky. Je prepojená s konkrétnou objednávkou\footnote{Prepojenie zabezpečuje, že recenziu môže zanechať iba zákazník, ktorý skutočne uskutočnil objednávku.}, čím sa 
-    zabraňuje viacnásobnému hodnoteniu tej istej návštevy.
-
-\end{itemize}
-
-% ─────────────────────────────────────────────────────────────────────────────
-\subsection{Biznis pravidlá a obmedzenia}
-
-Systém musí rešpektovať niekoľko biznis pravidiel, ktoré sa priamo premietajú 
-do integritných obmedzení databázy.
-
-\begin{itemize}
-
-    \item \textbf{Exkluzivita rezervácií} --- stôl nemôže byť rezervovaný 
-    pre viac ako jednu rezerváciu v rovnakom časovom intervale. Obmedzenie 
-    sa implementuje ako kontrola prekrývania časových intervalov pre dané \texttt{cislo\_stola} v tabuľke \texttt{Rezervacia}.
-
-    \item \textbf{Podmienka vytvorenia dine-in objednávky} --- pred vytvorením záznamu
-    v \texttt{DineInObjednavka} systém overí v tabuľke \texttt{Rezervacia},
-    či pre dané \texttt{cislo\_stola} existuje aktívna rezervácia (\texttt{stav = aktivna})
-    v aktuálnom čase. Zabraňuje sa tým vzniku objednávok pre stoly, pri ktorých
-    nesedí žiadny zákazník.
-
-    \item \textbf{Podmienka uzavretia objednávky} --- objednávka nemôže 
-    byť označená ako \textit{„zaplatená"}, pokiaľ k nej neexistuje platný 
-    záznam v \texttt{Faktura} s \texttt{je\_zaplatena = TRUE}. Obmedzenie sa vynucuje stavovým
-    automatom objednávky.
-
-    \item \textbf{Dostupnosť položiek menu} --- položku menu nie je 
-    možné zaradiť do objednávky, ak má atribút \texttt{je\_dostupna = FALSE}.
-
-    \item \textbf{Povinnosť adresy pre delivery objednávku} --- objednávku typu 
-    delivery nie je možné vytvoriť bez vyplnenej doručovacej adresy. 
-    Toto je zabezpečené obmedzeniami \texttt{NOT NULL} na atribútoch \texttt{mesto} 
-    a \texttt{ulica} v tabuľke \texttt{DeliveryObjednavka} na databázovej úrovni.
-
-    \item \textbf{Jedinečnosť recenzie} --- zákazník môže zanechať najviac 
-    jednu recenziu na jednu objednávku. Duplicita sa vynucuje unikátnym 
-    obmedzením na atribút \texttt{id\_objednavky} v tabuľke \texttt{Recenzia}.
-
-\end{itemize}
-
-\newpage
-\section{Definovanie používateľských scenárov}
-\label{sec:user_scenarios}
-
-\subsection{Scenár č.1 - Rezervácia stola a príchod do reštaurácie}
-\label{subsec:scenar1}
-
-\noindent\textbf{Názov:} Rezervácia stola a príchod do reštaurácie \\
-\noindent\textbf{Popis:} Scenár pokrýva proces vytvorenia rezervácie cez webovú stránku, registráciu zákazníka a overenie rezervácie pri príchode do reštaurácie. \\
-\noindent\textbf{Aktér:} Zákazník, Zamestnanec
-
-\subsubsection*{Hlavný tok}
-
-\begin{enumerate}
-
-    \item \textbf{Zákazník si prezerá dostupné stoly} \\
-    Zákazník navštívi webovú stránku reštaurácie a zvolí dátum a čas. \\
-    \textit{Dátová vrstva:} V tabuľke \texttt{Rezervacia} sa vyhľadajú všetky záznamy pre zvolený dátum. Pre každé \texttt{cislo\_stola} sa overuje, či v zadanom časovom okne neexistuje žiadna rezervácia s prekrývajúcim sa intervalom. Zákazníkovi sa vrátia čísla stolov, pre ktoré táto podmienka platí.
-
-    \item \textbf{Zákazník sa zaregistruje} \\
-    Zákazník klikne na \textit{„Zaregistrovať"} a zadá svoje údaje. \\
-    \textit{Dátová vrstva:} Pred vytvorením záznamu sa v tabuľke \texttt{Zakaznik} overuje unikátnosť zadaného e-mailu a telefónneho čísla. Ak sú unikátne, vytvorí sa nový záznam s atribútmi \texttt{meno}, \texttt{priezvisko}, \texttt{email}, \texttt{tel}. Systém vráti vygenerované \texttt{id} nového zákazníka.
-
-    \item \textbf{Zákazník vytvorí rezerváciu} \\
-    Zákazník vyberie stôl a potvrdí rezerváciu. \\
-    \textit{Dátová vrstva:} Systém znovu overí v tabuľke \texttt{Rezervacia}, že pre dané \texttt{cislo\_stola} a dátum neexistuje žiadny záznam s prekrývajúcim sa časovým intervalom. Ak podmienka platí, vytvorí sa nový záznam obsahujúci \texttt{id\_zakaznika}, \texttt{cislo\_stola}, \texttt{datum}, \texttt{cas\_zaciatku}, \texttt{cas\_konca}, \texttt{pocet\_osob} a \texttt{stav} nastavený na \texttt{potvrdena}. Zákazník dostane potvrdenie rezervácie.
-
-    \item \textbf{Zákazník príde do reštaurácie} \\
-    Zákazník sa predstaví zamestnancom svojím menom. Zamestnanec overí rezerváciu v systéme a usadí zákazníka. \\
-    \textit{Dátová vrstva:} Prehľadáva sa tabuľka \texttt{Rezervacia} prepojená s tabuľkou \texttt{Zakaznik} cez \texttt{id\_zakaznika}. Filtruje sa podľa mena, priezviska zákazníka a dnešného dátumu. Po nájdení záznamu sa v tabuľke \texttt{Rezervacia} aktualizuje atribút \texttt{stav} na \texttt{aktivna}.
-
-\end{enumerate}
-
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.7\textwidth]{../assets/diagram1cast1}
-    \caption{Scenár č.1 - Časť 1: Prezeranie dostupných stolov}
-    \label{fig:diagram1cast1}
+    \includegraphics[width=\textwidth]{relacny_model}
+    \caption{Aktuálny fyzický model databázy}
 \end{figure}
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.7\textwidth]{../assets/diagram1cast2}
-    \caption{Scenár č.1 - Časť 2: Registrácia zákazníka a vytvorenie rezervácie}
-    \label{fig:diagram1cast2}
-\end{figure}
+\section{Fyzický model - implementácia}
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.95\textwidth]{../assets/diagram1cast3}
-    \caption{Scenár č.1 - Časť 3: Príchod do reštaurácie}
-    \label{fig:diagram1cast3}
-\end{figure}
-
-\subsubsection*{Alternatívne toky}
-
-\begin{itemize}
-
-    \item \textbf{Alt. A - E-mail alebo telefónne číslo už existuje (krok 2)} \\
-    Overenie unikátnosti v tabuľke \texttt{Zakaznik} zlyhá. Systém informuje zákazníka, že zadaný e-mail alebo telefónne číslo je už registrované. Zákazník sa prihlási do existujúceho účtu a pokračuje krokom 3.
-
-    \item \textbf{Alt. B - Stôl už nie je dostupný (krok 3)} \\
-    Overenie v tabuľke \texttt{Rezervacia} odhalí prekrývajúci sa záznam pre dané \texttt{cislo\_stola} a čas. Systém informuje zákazníka a zobrazí znovu dostupné stoly. Zákazník si vyberie iný stôl alebo čas a pokračuje krokom 3.
-
-    \item \textbf{Alt. C - Rezervácia sa nenájde (krok 4)} \\
-    Prehľadávanie tabuľky \texttt{Rezervacia} prepojenej s \texttt{Zakaznik} nevráti žiadny záznam. Zamestnanec sa ospravedlní zákazníkovi. Systém prehľadá tabuľku \texttt{Rezervacia} a overí, či pre dané \texttt{cislo\_stola} neexistuje žiadna aktívna rezervácia v aktuálnom čase. Ak je stôl voľný, zákazník je usadený bez rezervácie a scenár končí úspešne. Ak nie, zákazník musí počkať alebo odísť.
-
-\end{itemize}
-
-% ─────────────────────────────────────────────────────────────────────────────
-
-\subsection{Scenár č.2 - Objednanie jedla, platba a recenzia}
-\label{subsec:scenar2}
-
-\noindent\textbf{Názov:} Objednanie jedla, platba a recenzia \\
-\noindent\textbf{Popis:} Scenár pokrýva proces objednania jedla zákazníkom pri stole, spracovanie objednávky kuchyňou, doručenie jedla čašníkom, zaplatenie účtu a zanechanie recenzie. \\
-\noindent\textbf{Aktér:} Zákazník, Čašník, Kuchár
-
-\subsubsection*{Hlavný tok}
-
-\begin{enumerate}
- 
-    \item \textbf{Zákazník si objedná} \\
-    Zákazník si prezrie digitálne menu, vyberie položky a potvrdí objednávku. \\
-    \textit{Dátová vrstva:} Systém najprv overí v tabuľke \texttt{Rezervacia}, že pre dané \texttt{cislo\_stola} existuje aktívna rezervácia (\texttt{stav = aktivna}) v aktuálnom čase. Následne sa prehľadá tabuľka \texttt{PolozkaMenu}, vrátia sa len záznamy kde \texttt{je\_dostupna = TRUE}. Po potvrdení sa vytvorí záznam v \texttt{Objednavka} (\texttt{stav = nova}), prepojený záznam v \texttt{DineInObjednavka} s \texttt{cislo\_stola} a \texttt{id\_casnika} a pre každú vybranú položku samostatný záznam v \texttt{ObjednavkaPolozka} so \texttt{stavom = nova} a snímkou aktuálnej ceny.
- 
-    \item \textbf{Zákazník dostane objednávku} \\
-    Zákazník sleduje stav objednávky na termináli. Keď je objednávka pripravená, čašník ju prinesie na stôl. \\
-    \textit{Dátová vrstva:} Z tabuľky \texttt{Objednavka} sa načíta aktuálny \texttt{stav} podľa \texttt{id} objednávky. Žiadne záznamy sa nevytvárajú.
- 
-    \item \textbf{Zákazník zaplatí} \\
-    Zákazník zvolí spôsob platby a zaplatí cez terminál pri stole. \\
-    \textit{Dátová vrstva:} Systém zostaví súhrn z tabuľky \texttt{ObjednavkaPolozka} prepojenej s \texttt{PolozkaMenu} --- pre každú položku sa vráti \texttt{nazov}, \texttt{mnozstvo} a \texttt{cena\_v\_case\_objednavky}. Vytvorí sa záznam v \texttt{Faktura} s \texttt{je\_zaplatena = TRUE} a \texttt{sposob\_platby}. V \texttt{Objednavka} sa nastaví \texttt{stav = zaplatena}.
- 
-    \item \textbf{Zákazník zanechá recenziu} \\
-    Po zaplatení systém vyzve zákazníka na hodnotenie. Zákazník zadá hodnotenie (1--5) a komentár. \\
-    \textit{Dátová vrstva:} V tabuľke \texttt{Recenzia} sa vytvorí záznam s atribútmi \texttt{id\_objednavky}, \texttt{hodnotenie}, \texttt{komentar} a \texttt{cas}.
- 
-\end{enumerate}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=\textwidth]{../assets/diagram2cast1}
-    \caption{Scenár č.2 - Časť 1: Otvorenie menu a potvrdenie objednávky}
-    \label{fig:diagram2cast1}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=\textwidth]{../assets/diagram2cast2}
-    \caption{Scenár č.2 - Časť 2: Sledovanie stavu a doručenie jedla}
-    \label{fig:diagram2cast2}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=\textwidth]{../assets/diagram2cast3}
-    \caption{Scenár č.2 - Časť 3: Účet, platba a recenzia}
-    \label{fig:diagram2cast3}
-\end{figure}
-
-\subsubsection*{Alternatívne toky}
-
-\begin{itemize}
-
-    \item \textbf{Alt. A - Položka nie je dostupná (krok 1)} \\
-    Položka sa v prehľadávaní tabuľky \texttt{PolozkaMenu} nezobrazí, pretože \texttt{je\_dostupna = FALSE}. Zákazník si vyberie inú položku z menu.
-
-    \item \textbf{Alt. B - Zákazník chce zrušiť položku (kroky 1-2)} \\
-    Možné iba ak príslušný záznam v tabuľke \texttt{ObjednavkaPolozka} má atribút \texttt{stav} stále nastavený na \texttt{nova}. Aktualizuje sa \texttt{stav} daného záznamu na \texttt{zrusena}. Ak sú všetky položky zrušené, aktualizuje sa aj \texttt{stav} záznamu v tabuľke \texttt{Objednavka} na \texttt{zrusena}.
-
-    \item \textbf{Alt. C - Zákazník nechce zanechať recenziu (krok 4)} \\
-    Zákazník preskočí výzvu, žiadny záznam v tabuľke \texttt{Recenzia} sa nevytvorí. Scenár končí po kroku 3.
-
-\end{itemize}
-
-% ─────────────────────────────────────────────────────────────────────────────
-
-\subsection{Scenár č.3 - Objednávka jedla s donáškou}
-\label{subsec:scenar3}
-
-\noindent\textbf{Názov:} Objednávka jedla s donáškou \\
-\noindent\textbf{Popis:} Scenár pokrýva proces objednania jedla cez webovú stránku s doručením domov --- od prihlásenia zákazníka a výberu položiek až po doručenie kuriérom a zanechanie recenzie. \\
-\noindent\textbf{Aktér:} Zákazník, Kuriér
-
-\subsubsection*{Hlavný tok}
-
-\begin{enumerate}
-
-    \item \textbf{Zákazník sa prihlási do systému} \\
-    Zákazník navštívi webovú stránku a prihlási sa svojím e-mailom a heslom. \\
-    \textit{Dátová vrstva:} V tabuľke \texttt{Zakaznik} sa vyhľadá záznam zodpovedajúci zadanému e-mailu a heslu. Ak záznam existuje, načítajú sa identifikačné údaje zákazníka (\texttt{id}, \texttt{meno}, \texttt{priezvisko}), ktoré sa používajú v ďalších krokoch scenára. Žiadne záznamy sa nevytvárajú ani nemenia.
-
-    \item \textbf{Zákazník si prezrie menu a vyberie položky} \\
-    Zákazník si prezrie dostupné položky, pridá ich do košíka a zadá doručovaciu adresu. \\
-    \textit{Dátová vrstva:} Z tabuľky \texttt{PolozkaMenu} sa načítajú všetky dostupné položky --- pre každú sa získa \texttt{nazov}, \texttt{popis}, \texttt{aktualna\_cena} a \texttt{kategoria}. Zobrazia sa iba položky, ktoré sú označené ako dostupné. Košík je dočasne udržiavaný v pamäti aplikácie až do potvrdenia objednávky.
-
-    \item \textbf{Zákazník potvrdí objednávku} \\
-    Zákazník skontroluje obsah košíka a potvrdí objednávku s doručovacou adresou. \\
-    \textit{Dátová vrstva:} Do tabuľky \texttt{Objednavka} sa vytvorí nový záznam so \texttt{stavom} nastaveným na \texttt{nova} a aktuálnym časom vytvorenia. Do tabuľky \texttt{DeliveryObjednavka} sa vytvorí záznam prepájajúci objednávku so zákazníkom a jeho doručovacou adresou (\texttt{mesto}, \texttt{ulica}). Pole \texttt{id\_kuriera} zostáva prázdne a doplní sa neskôr. Pre každú položku z košíka sa do tabuľky \texttt{ObjednavkaPolozka} vytvorí samostatný záznam obsahujúci \texttt{id\_objednavky}, \texttt{id\_polozky}, \texttt{mnozstvo}, \texttt{stav} nastavený na \texttt{nova} a \texttt{cena\_v\_case\_objednavky} skopírovanú z aktuálnej ceny položky menu.
-
-    \item \textbf{Zákazník sleduje stav objednávky} \\
-    Zákazník môže priebežne kontrolovať stav svojej objednávky. \\
-    \textit{Dátová vrstva:} Z tabuľky \texttt{Objednavka} sa načíta aktuálny \texttt{stav} konkrétnej objednávky identifikovanej jej \texttt{id}. Stav prechádza životným cyklom\footnote{Stavový cyklus objednávky je implementovaný ako konečný stavový automat, ktorý povoľuje len definované prechody medzi stavmi.}: \texttt{nova} $\rightarrow$ \texttt{pripravuje\_sa} $\rightarrow$ \texttt{dorucuje\_sa}. Táto operácia sa môže opakovať viackrát, žiadne záznamy nevznikajú.
-
-    \item \textbf{Kuriér doručí objednávku} \\
-    Kuriér odovzdá objednávku zákazníkovi na adrese a potvrdí doručenie v systéme. \\
-    \textit{Dátová vrstva:} V tabuľke \texttt{Objednavka} sa \texttt{stav} aktualizuje na \texttt{dorucena}, čím sa uzavrie životný cyklus objednávky. V tabuľke \texttt{DeliveryObjednavka} sa doplní \texttt{id\_kuriera} --- pole, ktoré bolo prázdne od kroku 3. Zákazník dostane notifikáciu o doručení.
-
-    \item \textbf{Zákazník zanechá recenziu} \\
-    Po doručení systém vyzve zákazníka na hodnotenie. Zákazník zadá hodnotenie (1--5) a komentár. \\
-    \textit{Dátová vrstva:} V tabuľke \texttt{Recenzia} sa vytvorí nový záznam s atribútmi \texttt{id\_objednavky}, \texttt{hodnotenie}, \texttt{komentar} a \texttt{cas}.
-
-\end{enumerate}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{../assets/diagram3cast1}
-    \caption{Scenár č.3 - Časť 1: Prihlásenie, výber položiek a potvrdenie objednávky}
-    \label{fig:diagram3cast1}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{../assets/diagram3cast2}
-    \caption{Scenár č.3 - Časť 2: Sledovanie stavu, doručenie a recenzia}
-    \label{fig:diagram3cast2}
-\end{figure}
-
-\subsubsection*{Alternatívne toky}
-
-\begin{itemize}
-
-    \item \textbf{Alt. A - Zákazník nie je prihlásený (krok 1)} \\
-    V tabuľke \texttt{Zakaznik} sa nenájde žiadny záznam zodpovedajúci zadaným prihlasovacím údajom. Systém zobrazí chybovú hlášku „Nesprávny e-mail alebo heslo". Zákazník môže skúsiť znova alebo sa zaregistrovať.
-
-    \item \textbf{Alt. B - Položka nie je dostupná (krok 2)} \\
-    Položky s príznakom nedostupnosti sa pri načítaní tabuľky \texttt{PolozkaMenu} jednoducho nezobrazia. Zákazník si vyberie inú položku z menu.
-
-    \item \textbf{Alt. C - Zákazník zruší objednávku (kroky 3--4)} \\
-    Zrušenie je možné iba ak \texttt{stav} záznamu v tabuľke \texttt{Objednavka} je ešte \texttt{nova}. V tabuľke \texttt{Objednavka} sa \texttt{stav} zmení na \texttt{zrusena}. V tabuľke \texttt{ObjednavkaPolozka} sa \texttt{stav} zmení na \texttt{zrusena} pre všetky položky danej objednávky. Záznamy sa nevymažú\footnote{Namiesto fyzického vymazania sa používa logické zrušenie záznamu, aby bola zachovaná auditná stopa a historické dáta.} --- zachováva sa história.
-
-    \item \textbf{Alt. D - Zákazník nechce zanechať recenziu (krok 6)} \\
-    Zákazník preskočí výzvu, žiadny záznam v tabuľke \texttt{Recenzia} sa nevytvorí. Scenár končí po kroku 5.
-
-\end{itemize}
-
-% ─────────────────────────────────────────────────────────────────────────────
-
-\newpage
-\subsection{Scenár č.4 - Príprava a výdaj jedla zamestnancami}
-\label{subsec:scenar4}
-
-\noindent\textbf{Názov:} Príprava a výdaj jedla zamestnancami \\
-\noindent\textbf{Popis:} Scenár pokrýva proces spracovania objednávky zo strany kuchyne a čašníka --- od zobrazenia novej objednávky kuchárovi, cez jej prípravu, až po fyzické doručenie jedla zákazníkovi čašníkom. \\
-\noindent\textbf{Aktér:} Kuchár, Čašník, Zákazník\footnotemark
-\footnotetext{Zákazník nie je priamym aktérom scenára, vystupuje iba ako vedľajší účastník procesu.}
-
-\subsubsection*{Hlavný tok}
-
-\begin{enumerate}
-
-    \item \textbf{Kuchár uvidí novú objednávku} \\
-    Po potvrdení objednávky zákazníkom sa táto automaticky zobrazí v kuchynskom systéme. \\
-    \textit{Dátová vrstva:} Z tabuľky \texttt{Objednavka} sa načítajú všetky záznamy so \texttt{stavom = nova}, prepojené s tabuľkou \texttt{ObjednavkaPolozka} cez \texttt{id\_objednavky}. Pre každú položku sa získa \texttt{id\_polozky} a \texttt{mnozstvo}. Kuchár vidí zoznam položiek bez osobných údajov zákazníka.
-
-    \item \textbf{Kuchár prevezme objednávku} \\
-    Kuchár označí objednávku ako prevzatú a začne s prípravou. \\
-    \textit{Dátová vrstva:} V tabuľke \texttt{Objednavka} sa \texttt{stav} aktualizuje na \texttt{pripravuje\_sa}. Ostatní kuchári vidia, že objednávka je už spracovávaná.
-
-    \item \textbf{Kuchár dokončí prípravu} \\
-    Po dokončení prípravy všetkých položiek kuchár označí objednávku ako hotovú. \\
-    \textit{Dátová vrstva:} V tabuľke \texttt{Objednavka} sa \texttt{stav} aktualizuje na \texttt{hotova}. Systém notifikuje čašníka priradeného k danému stolu.
-
-    \item \textbf{Čašník doručí jedlo zákazníkovi} \\
-    Čašník si v systéme skontroluje, ktoré objednávky sú hotové a prinesie ich k príslušnému stolu. \\
-    \textit{Dátová vrstva:} Z tabuľky \texttt{Objednavka} sa načítajú záznamy so \texttt{stavom = hotova} prepojené s tabuľkou \texttt{DineInObjednavka} cez \texttt{id\_objednavky}, aby čašník vedel \texttt{cislo\_stola}. Po doručení každej položky čašník aktualizuje \texttt{stav} príslušného záznamu v tabuľke \texttt{ObjednavkaPolozka} na \texttt{dorucena}.
-
-\end{enumerate}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=\textwidth]{../assets/diagram4cast1}
-    \caption{Scenár č.4 - Príprava objednávky kuchárom a výdaj čašníkom}
-    \label{fig:diagram4cast1}
-\end{figure}
-
-\subsubsection*{Alternatívne toky}
-
-\begin{itemize}
-
-    \item \textbf{Alt. A - Položka nie je možné pripraviť (krok 2)} \\
-    Kuchár zistí, že niektorú položku nie je možné pripraviť (napr. došla surovina). V tabuľke \texttt{ObjednavkaPolozka} sa \texttt{stav} danej položky zmení na \texttt{zrusena}. Ak sú zrušené všetky položky, aktualizuje sa aj \texttt{stav} záznamu v tabuľke \texttt{Objednavka} na \texttt{zrusena}. Čašník informuje zákazníka.
-
-    \item \textbf{Alt. B - Čašník nenájde zákazníka pri stole (krok 4)} \\
-    Pri doručení čašník zistí, že stôl je prázdny. Položky zostávajú v stave \texttt{hotova} v tabuľke \texttt{ObjednavkaPolozka}. Čašník situáciu rieši manuálne --- buď počká, alebo eskaluje na manažéra.
-
-\end{itemize}
-
-\newpage
-\section{Návrh relačného modelu}
-\label{sec:rm_design}
-
-Relačný model je navrhnutý ako fyzický model databázy v~UML notácii.
-Model obsahuje celkovo 10~tabuliek, z~čoho 7~je plnohodnotných entitných tabuliek
-pričom ďalšie skupiny tabuliek sú navrhnuté tak, aby každá plnila samostatnú
-a~zmysluplnú rolu.
-Každá z~týchto tabuliek má vlastnú štruktúru, primárny kľúč a~jasne vymedzenú
-zodpovednosť, čo spĺňa požiadavku minimálne 6~plnohodnotných tabuliek.
-Diagram modelu je uvedený nižšie a~tiež priložený samostatne vo formáte PNG v~prílohách (pozri Prílohy).
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=\textwidth]{../assets/relacny_model}
-    \caption{Relačný model reštauračného systému (fyzický model, UML notácia)}
-    \label{fig:relacny-model}
-\end{figure}
-
-% ----------------------------------------------------------
-\subsection{Popis tabuliek}
-\label{subsec:popis_tabuliek}
-
-% ── Zamestnanec ──────────────────────────────────────────
-\subsubsection{Zamestnanec}
-\label{subsubsec:zamestnanec}
-
-\textbf{Účel:} Eviduje všetkých pracovníkov reštaurácie bez ohľadu na ich rolu.
-Rola je uložená ako atribút, čo zjednodušuje správu prístupových práv
-a~personálnych záznamov bez potreby samostatných tabuliek pre každý typ zamestnanca.
+Fyzický model je implementovaný v súbore \texttt{src/schema.sql}. Skript najprv odstráni existujúce
+tabuľky a ENUM typy, následne vytvorí všetky typy, tabuľky, integritné obmedzenia a vlastné indexy.
 
 \begin{table}[H]
 \centering
 \small
-\begin{tabular}{|l|l|p{6.5cm}|}
-\hline
-\textbf{Atribút} & \textbf{Dátový typ} & \textbf{Obmedzenia} \\
-\hline
-id               & SERIAL        & PK \\
-meno             & VARCHAR(50)   & NOT NULL \\
-priezvisko       & VARCHAR(50)   & NOT NULL \\
-typ              & ENUM          & NOT NULL --- \texttt{casnik}, \texttt{kuchar}, \texttt{kurier}, \texttt{manazer} \\
-hodinovaMzda     & DECIMAL(8,2)  & NOT NULL, CHECK $> 0$ \\
-odpracovanyČas   & DECIMAL(8,2)  & NOT NULL, DEFAULT 0 \\
-email            & VARCHAR(100)  & NOT NULL, UNIQUE \\
-tel              & VARCHAR(20)   & NOT NULL, UNIQUE \\
-heslo            & VARCHAR(64)   & NOT NULL \\
-\hline
+\begin{tabular}{p{4cm} p{10cm}}
+\toprule
+\textbf{Tabuľka} & \textbf{Účel} \\
+\midrule
+\texttt{Zamestnanec} & Evidencia čašníkov, kuchárov, kuriérov a manažérov. \\
+\texttt{Zakaznik} & Registrovaní zákazníci pre rezervácie, dine-in a donášku. \\
+\texttt{PolozkaMenu} & Aktuálna ponuka jedál, nápojov a dezertov. \\
+\texttt{Objednavka} & Spoločná entita pre všetky objednávky. \\
+\texttt{DineInObjednavka} & Špecializácia objednávky pri stole. \\
+\texttt{DeliveryObjednavka} & Špecializácia donáškovej objednávky. \\
+\texttt{ObjednavkaPolozka} & M:N vzťah objednávky a menu položiek so snímkou ceny. \\
+\texttt{Rezervacia} & Rezervácia konkrétneho stola v časovom intervale. \\
+\texttt{Faktura} & Platobný doklad k objednávke. \\
+\texttt{Recenzia} & Jedno hodnotenie k jednej objednávke. \\
+\bottomrule
 \end{tabular}
-\caption{Tabuľka \texttt{Zamestnanec}}
+\caption{Zoznam fyzických tabuliek}
 \end{table}
 
-\noindent\textbf{Primárny kľúč:} Umelý (\texttt{id}) --- zamestnanec nemá prirodzený jednoznačný
-identifikátor (e-mail by mohol slúžiť, ale môže sa meniť). \\
-\textbf{Cudzie kľúče:} Žiadne --- tabuľka je referenčná pre \texttt{DineInObjednavka} a~\texttt{DeliveryObjednavka}.
+\subsection*{Integritné obmedzenia}
 
-% ── Zákazník ─────────────────────────────────────────────
-\subsubsection{Zákazník}
-\label{subsubsec:zakaznik}
+Model používa primárne kľúče typu \texttt{SERIAL}, cudzie kľúče, \texttt{NOT NULL},
+\texttt{UNIQUE}, \texttt{CHECK} a \texttt{DEFAULT}. Netriviálne pravidlá sú:
+\begin{itemize}
+    \item \texttt{email} a \texttt{tel} sú unikátne pri zákazníkoch aj zamestnancoch,
+    \item ceny, mzdy, množstvá a počet osôb musia byť kladné,
+    \item hodnotenie recenzie je obmedzené na interval 1 až 5,
+    \item koniec rezervácie musí byť po začiatku rezervácie,
+    \item \texttt{Faktura.id\_objednavky} a \texttt{Recenzia.id\_objednavky} sú unikátne, teda k objednávke existuje najviac jedna faktúra a najviac jedna recenzia.
+\end{itemize}
 
-\textbf{Účel:} Reprezentuje registrovaného zákazníka využívajúceho donášku alebo vytvárajúceho
-rezervácie. Evidujú sa kontaktné údaje potrebné pre identifikáciu a~doručenie.
+\subsection*{ON DELETE stratégie}
+
+\begin{itemize}
+    \item \texttt{ON DELETE CASCADE} je použité medzi \texttt{Objednavka} a jej detailmi, aby sa neosireli špecializačné a položkové záznamy.
+    \item \texttt{ON DELETE RESTRICT} chráni historické objednávky pred zmazaním zákazníka alebo položky menu, na ktorú sa odkazujú.
+    \item \texttt{ON DELETE SET NULL} sa používa pri voliteľných väzbách na zamestnanca alebo zákazníka, kde chceme zachovať historický záznam aj po odstránení osoby.
+\end{itemize}
+
+\section{Seed dáta}
+
+Seed dáta sú generované skriptom \texttt{seed.py} pomocou knižnice Faker so slovenskou lokalizáciou
+\texttt{sk\_SK}. Generovanie je reprodukovateľné, pretože skript používa fixný seed
+\texttt{SEED = 42}. Výstupom je súbor \texttt{seed.sql}, ktorý vkladá dáta do všetkých hlavných tabuliek
+a na konci nastaví hodnoty sekvencií cez \texttt{setval}.
 
 \begin{table}[H]
 \centering
 \small
-\begin{tabular}{|l|l|p{6.5cm}|}
-\hline
-\textbf{Atribút} & \textbf{Dátový typ} & \textbf{Obmedzenia} \\
-\hline
-id               & SERIAL        & PK \\
-meno             & VARCHAR(50)   & NOT NULL \\
-priezvisko       & VARCHAR(50)   & NOT NULL \\
-email            & VARCHAR(100)  & NOT NULL, UNIQUE \\
-tel              & VARCHAR(20)   & NOT NULL, UNIQUE \\
-heslo            & VARCHAR(64)   & NOT NULL \\
-\hline
+\begin{tabular}{lr}
+\toprule
+\textbf{Tabuľka} & \textbf{Počet záznamov} \\
+\midrule
+\texttt{Zamestnanec} & 25 \\
+\texttt{Zakaznik} & 600 \\
+\texttt{PolozkaMenu} & 50 \\
+\texttt{Rezervacia} & 1 500 \\
+\texttt{Objednavka} & 4 000 \\
+\texttt{DineInObjednavka} & 2 338 \\
+\texttt{DeliveryObjednavka} & 1 662 \\
+\texttt{ObjednavkaPolozka} & 10 764 \\
+\texttt{Faktura} & 3 621 \\
+\texttt{Recenzia} & 1 177 \\
+\midrule
+\textbf{Spolu} & \textbf{25 737} \\
+\bottomrule
 \end{tabular}
-\caption{Tabuľka \texttt{Zákazník}}
+\caption{Počty záznamov po seede}
 \end{table}
 
-\noindent\textbf{Primárny kľúč:} Umelý (\texttt{id}). \\
-\textbf{Cudzie kľúče:} Žiadne.
+Distribúcia dát je biznisovo motivovaná: objednávky sú rozdelené približne na 60 \% dine-in a
+40 \% delivery, zákazníci sú vyberaní váženou náhodnosťou, takže časť zákazníkov objednáva často a
+časť vôbec. Rezervácie sú rozložené medzi minulosť, aktuálny deň a budúcnosť, pričom budúce
+rezervácie neobsahujú dokončené stavy.
 
-% ── PolozkaMenu ──────────────────────────────────────────
-\subsubsection{PolozkaMenu}
-\label{subsubsec:polozkamenu}
+Konzistencia je zabezpečená poradím generovania dát. Najprv vznikajú referenčné entity
+(\texttt{Zakaznik}, \texttt{Zamestnanec}, \texttt{PolozkaMenu}), potom rezervácie, objednávky,
+špecializácie objednávok, položky, faktúry a recenzie. Generátor vyberá iba existujúce cudzie kľúče
+a rešpektuje roly zamestnancov pri čašníkoch a kuriéroch.
 
-\textbf{Účel:} Reprezentuje ponuku reštaurácie. Atribút \texttt{aktualna\_cena} obsahuje
-vždy aktuálnu cenu, pričom historická cena sa zachováva snímkou
-v~\texttt{ObjednavkaPolozka} pri každej objednávke.
+\section{Proces 1 - Vytvorenie dine-in objednávky}
 
-\begin{table}[H]
-\centering
-\small
-\begin{tabular}{|l|l|p{6.5cm}|}
-\hline
-\textbf{Atribút}   & \textbf{Dátový typ} & \textbf{Obmedzenia} \\
-\hline
-id                 & SERIAL         & PK \\
-nazov              & VARCHAR(100)   & NOT NULL \\
-popis              & TEXT           & \\
-aktualna\_cena     & DECIMAL(8,2)   & NOT NULL, CHECK $> 0$ \\
-kategoria          & ENUM           & NOT NULL --- \texttt{jedlo}, \texttt{napoj}, \texttt{dezert}, \ldots \\
-je\_dostupna       & BOOLEAN        & NOT NULL, DEFAULT TRUE \\
-\hline
-\end{tabular}
-\caption{Tabuľka \texttt{PolozkaMenu}}
-\end{table}
+\subsection*{Popis procesu}
 
-\noindent\textbf{Primárny kľúč:} Umelý (\texttt{id}). \\
-\textbf{Cudzie kľúče:} Žiadne --- tabuľku referujú:
+Proces pokrýva príchod zákazníka s rezerváciou a vytvorenie objednávky pri stole. Vstupom sú
+číslo stola, zákazník, dátum a čas príchodu, čašník a tri objednávané položky s množstvami.
+Výstupom je detail vytvorenej objednávky alebo zoznam validačných chýb.
+
+Proces overuje existenciu zákazníka, potvrdenú rezerváciu v danom časovom okne, rolu čašníka a
+dostupnosť všetkých položiek menu. Ak všetky kontroly prejdú, v jednom SQL príkaze sa aktivuje
+rezervácia a vložia sa záznamy do \texttt{Objednavka}, \texttt{DineInObjednavka} a
 \texttt{ObjednavkaPolozka}.
 
-% ── Objednavka ───────────────────────────────────────────
-\subsubsection{Objednavka}
-\label{subsubsec:objednavka}
+\subsection*{SQL implementácia}
 
-\textbf{Účel:} Centrálna entita systému. Každá objednávka (dine-in aj delivery)
-má jeden záznam tu. Typ objednávky sa rozlišuje existenciou záznamu
-v~\texttt{DineInObjednavka} alebo \texttt{DeliveryObjednavka}.
+Implementácia je v súbore \texttt{src/queries.sql}. Používa CTE, \texttt{UPDATE},
+\texttt{INSERT ... RETURNING} a finálny \texttt{SELECT}. Nepoužíva PL/pgSQL blok
+\texttt{DO}, vlastné uložené funkcie, procedúry, triggery ani kurzory.
+
+\begin{lstlisting}[language=SQL]
+WITH
+params AS (...),
+input_items(polozka_id, mnozstvo) AS (...),
+valid_reservation AS (...),
+valid_items AS (...),
+validation_errors AS (...),
+activated_reservation AS (
+    UPDATE Rezervacia r
+    SET stav = 'aktivna'
+    FROM valid_reservation vr
+    WHERE r.id = vr.id
+      AND NOT EXISTS (SELECT 1 FROM validation_errors)
+    RETURNING r.id AS id_rezervacie
+),
+inserted_order AS (
+    INSERT INTO Objednavka (stav, cas_vytvorenia)
+    SELECT 'nova'::stav_objednavky, p.p_datum + p.p_cas
+    FROM params p
+    WHERE EXISTS (SELECT 1 FROM activated_reservation)
+    RETURNING id, stav, cas_vytvorenia
+)
+SELECT ...
+\end{lstlisting}
+
+\subsection*{Ukážka spustenia}
+
+Testovacie parametre v \texttt{queries.sql}:
+\begin{itemize}
+    \item stôl: 8,
+    \item zákazník: \texttt{id = 320},
+    \item čas príchodu: \texttt{2026-05-03 13:15},
+    \item čašník: \texttt{id = 13},
+    \item položky: \texttt{12 x 1}, \texttt{17 x 2}, \texttt{24 x 2}.
+\end{itemize}
 
 \begin{table}[H]
 \centering
 \small
-\begin{tabular}{|l|l|p{6.5cm}|}
-\hline
-\textbf{Atribút}    & \textbf{Dátový typ} & \textbf{Obmedzenia} \\
-\hline
-id                  & SERIAL         & PK \\
-stav                & ENUM           & NOT NULL, DEFAULT \texttt{nova} --- \texttt{nova}, \texttt{pripravuje\_sa}, \texttt{hotova}, \texttt{zaplatena}, \texttt{dorucena}, \texttt{dorucuje\_sa}, \texttt{zrusena} \\
-cas\_vytvorenia     & TIMESTAMP      & NOT NULL, DEFAULT NOW() \\
-\hline
+\begin{tabular}{llrr}
+\toprule
+\textbf{Položka} & \textbf{Stav} & \textbf{Množstvo} & \textbf{Subtotal} \\
+\midrule
+Pizza Margherita & nova & 1 & 13.30 \\
+Kurací burger & nova & 2 & 31.82 \\
+Cappuccino & nova & 2 & 7.64 \\
+\midrule
+\textbf{Spolu} & & & \textbf{52.76} \\
+\bottomrule
 \end{tabular}
-\caption{Tabuľka \texttt{Objednavka}}
+\caption{Očakávaný výstup procesu 1 nad seed dátami}
 \end{table}
 
-\noindent\textbf{Primárny kľúč:} Umelý (\texttt{id}). \\
-\textbf{Cudzie kľúče:} Žiadne --- tabuľku referujú:
-\texttt{DineInObjednavka},
-\texttt{DeliveryObjednavka},
-\texttt{ObjednavkaPolozka},
-\texttt{Faktura}
-a~\texttt{Recenzia}.
+\subsection*{Zdôvodnenie korektnosti}
 
-% ── DineInObjednavka ─────────────────────────────────────
-\subsubsection{DineInObjednavka}
-\label{subsubsec:dinein}
+Objednávka sa vloží iba vtedy, keď CTE \texttt{validation\_errors} nevráti žiadny riadok. Všetky
+zápisy sú v jednom SQL príkaze, takže nevznikne situácia, že sa vytvorí iba časť objednávky.
+Snímka ceny sa berie z aktuálnej ceny v \texttt{PolozkaMenu} v momente vytvorenia objednávky.
 
-\textbf{Účel:} Špecializačná tabuľka pre objednávky pri stole.
-Rozširuje \texttt{Objednavka} o~informáciu o~čísle stola a~priradenom čašníkovi (\texttt{Zamestnanec}).
+\subsection*{Indexy podporujúce proces}
+
+\begin{itemize}
+    \item \texttt{idx\_rezervacia\_stol\_datum} podporuje hľadanie rezervácie podľa stola, dátumu a stavu.
+    \item \texttt{idx\_polozka\_dostupna} podporuje filtrovanie dostupných položiek menu.
+    \item \texttt{idx\_objednavkapolozka\_objednavka} zrýchľuje načítanie položiek vytvorenej objednávky.
+\end{itemize}
+
+\section{Proces 2 - Výkonnostný report čašníkov}
+
+\subsection*{Popis procesu}
+
+Manažér chce za zvolený rok vidieť výkon jednotlivých čašníkov. Report pracuje iba so zaplatenými
+dine-in objednávkami, teda so záznamami, ku ktorým existuje faktúra s
+\texttt{je\_zaplatena = TRUE}. Výstup obsahuje počet objednávok, celkovú tržbu, priemernú hodnotu
+objednávky, priemerné hodnotenie, poradie podľa tržby, percentuálny podiel a kumulatívnu tržbu.
+
+\subsection*{SQL implementácia}
+
+Proces používa pohľad \texttt{v\_dine\_in\_trzby}, CTE, agregácie a window funkcie. Rok sa filtruje
+cez rozsah dátumov, nie cez \texttt{EXTRACT(YEAR ...)}, aby databáza vedela efektívnejšie použiť
+index na \texttt{Objednavka.cas\_vytvorenia}.
+
+\begin{lstlisting}[language=SQL]
+CREATE OR REPLACE VIEW v_dine_in_trzby AS
+SELECT o.id, o.cas_vytvorenia, d.id_casnika,
+       SUM(op.mnozstvo * op.cena_v_case_objednavky) AS trzba_objednavky
+FROM Objednavka o
+JOIN Faktura f ON f.id_objednavky = o.id AND f.je_zaplatena = TRUE
+JOIN DineInObjednavka d ON d.id = o.id
+JOIN ObjednavkaPolozka op ON op.id_objednavky = o.id
+WHERE o.stav <> 'zrusena'
+GROUP BY o.id, o.cas_vytvorenia, d.id_casnika;
+
+WITH year_bounds AS (
+    SELECT '2026-01-01'::TIMESTAMP AS rok_od,
+           '2027-01-01'::TIMESTAMP AS rok_do
+)
+SELECT ...
+\end{lstlisting}
+
+\subsection*{Ukážka výstupu}
 
 \begin{table}[H]
 \centering
 \small
-\begin{tabular}{|l|l|p{6.5cm}|}
-\hline
-\textbf{Atribút}   & \textbf{Dátový typ} & \textbf{Obmedzenia} \\
-\hline
-id                 & INT  & PK, FK $\to$ \texttt{Objednavka(id)}, ON DELETE CASCADE \\
-id\_zakaznika       & INT           & FK $\to$ \texttt{Zákazník(id)}, ON DELETE RESTRICT\\
-cislo\_stola       & INT  & NOT NULL \\
-id\_casnika        & INT  & FK $\to$ \texttt{Zamestnanec(id)}, ON DELETE SET NULL \\
-\hline
+\begin{tabular}{rlrrrr}
+\toprule
+\textbf{Poradie} & \textbf{Čašník} & \textbf{Obj.} & \textbf{Tržba} & \textbf{Priemer} & \textbf{Hodn.} \\
+\midrule
+1 & Kristián Kučerová & 47 & 3001.85 & 63.87 & 4.13 \\
+2 & Ľubomíra Miklošová & 46 & 2797.38 & 60.81 & 4.00 \\
+3 & Metod Huba & 38 & 2528.98 & 66.55 & 3.75 \\
+4 & Leonard Macháčeková & 34 & 2460.25 & 72.36 & 3.75 \\
+5 & Irena Janečková & 35 & 2435.39 & 69.58 & 3.93 \\
+\bottomrule
 \end{tabular}
-\caption{Tabuľka \texttt{DineInObjednavka}}
+\caption{Prvých päť riadkov reportu pre rok 2026}
 \end{table}
 
-\noindent\textbf{Primárny kľúč:} Zdieľaný s~\texttt{Objednavka} --- vzťah 1:1. \\
-\textbf{Cudzie kľúče:}
-\begin{itemize}
-    \item \texttt{id} $\to$ \texttt{Objednavka(id)} --- CASCADE DELETE
-    \item \texttt{id\_casnika} $\to$ \texttt{Zamestnanec(id)} --- SET NULL
-\end{itemize}
+\subsection*{Zdôvodnenie korektnosti}
 
-% ── DeliveryObjednavka ───────────────────────────────────
-\subsubsection{DeliveryObjednavka}
-\label{subsubsec:delivery}
+Tržba vzniká ako súčet \texttt{mnozstvo * cena\_v\_case\_objednavky}, teda používa historickú cenu
+uloženú v objednávke, nie aktuálnu cenu menu. Zrušené objednávky a zrušené položky sa do reportu
+nezapočítavajú. Join na \texttt{Faktura} zabezpečí, že report reprezentuje reálne zaplatené tržby.
 
-\textbf{Účel:} Špecializačná tabuľka pre donáškové objednávky.
-Obsahuje doručovaciu adresu a~priraďuje kuriéra (\texttt{Zamestnanec}). \texttt{id\_kuriera} je NULL
-až do momentu pridelenia kuriéra.
-
-\begin{table}[H]
-\centering
-\small
-\begin{tabular}{|l|l|p{6.5cm}|}
-\hline
-\textbf{Atribút}    & \textbf{Dátový typ} & \textbf{Obmedzenia} \\
-\hline
-id                  & INT           & PK, FK $\to$ \texttt{Objednavka(id)}, ON DELETE CASCADE \\
-id\_zakaznika       & INT           & FK $\to$ \texttt{Zákazník(id)}, ON DELETE RESTRICT, NOT NULL \\
-id\_kuriera         & INT           & FK $\to$ \texttt{Zamestnanec(id)}, ON DELETE SET NULL, NULL \\
-mesto               & VARCHAR(100)  & NOT NULL \\
-ulica               & VARCHAR(100)  & NOT NULL \\
-\hline
-\end{tabular}
-\caption{Tabuľka \texttt{DeliveryObjednavka}}
-\end{table}
-
-\noindent\textbf{Primárny kľúč:} Zdieľaný s~\texttt{Objednavka} --- vzťah 1:1. \\
-\textbf{Cudzie kľúče:}
-\begin{itemize}
-    \item \texttt{id} $\to$ \texttt{Objednavka(id)} --- CASCADE DELETE
-    \item \texttt{id\_zakaznika} $\to$ \texttt{Zákazník(id)} --- RESTRICT
-    \item \texttt{id\_kuriera} $\to$ \texttt{Zamestnanec(id)} --- SET NULL
-\end{itemize}
-
-% ── ObjednavkaPolozka ────────────────────────────────────
-\subsubsection{ObjednavkaPolozka}
-\label{subsubsec:objednavkapolozka}
-
-\textbf{Účel:} Realizuje vzťah M:N medzi \texttt{Objednavka} a~\texttt{PolozkaMenu}.
-Ukladá snímku ceny v~čase objednávky a~individuálny stav každej položky,
-čo umožňuje kuchárovi sledovať pripravenosť jednotlivých jedál.
-
-\begin{table}[H]
-\centering
-\small
-\begin{tabular}{|l|l|p{5.5cm}|}
-\hline
-\textbf{Atribút}            & \textbf{Dátový typ} & \textbf{Obmedzenia} \\
-\hline
-id\_objednavkaPolozka       & SERIAL        & PK \\
-id\_objednavky              & INT           & FK $\to$ \texttt{Objednavka(id)}, ON DELETE CASCADE, NOT NULL \\
-id\_polozky                 & INT           & FK $\to$ \texttt{PolozkaMenu(id)}, ON DELETE RESTRICT, NOT NULL \\
-mnozstvo                    & INT           & NOT NULL, CHECK $> 0$ \\
-stav                        & ENUM          & NOT NULL, DEFAULT \texttt{nova} --- \texttt{nova}, \texttt{pripravuje\_sa}, \texttt{dorucena}, \texttt{zrusena} \\
-cena\_v\_case\_objednavky   & DECIMAL(8,2)  & NOT NULL \\
-\hline
-\end{tabular}
-\caption{Tabuľka \texttt{ObjednavkaPolozka}}
-\end{table}
-
-\noindent\textbf{Primárny kľúč:} Umelý (\texttt{id\_objednavkaPolozka}) --- umožňuje zaradiť tú istú
-položku menu do objednávky viackrát s~rôznym množstvom alebo stavom. \\
-\textbf{Cudzie kľúče:}
-\begin{itemize}
-    \item \texttt{id\_objednavky} $\to$ \texttt{Objednavka(id)} --- CASCADE DELETE
-    \item \texttt{id\_polozky} $\to$ \texttt{PolozkaMenu(id)} --- RESTRICT
-\end{itemize}
-
-% ── Rezervacia ───────────────────────────────────────────
-\subsubsection{Rezervacia}
-\label{subsubsec:rezervacia}
-
-\textbf{Účel:} Zachytáva rezerváciu stola zákazníkom na určitý časový interval.
-Je kritická pre správu kapacity a~zamedzenie kolízií --- dve rezervácie nesmú
-prekrývať rovnaký stôl v~rovnakom čase.
-
-\begin{table}[H]
-\centering
-\small
-\begin{tabular}{|l|l|p{5.5cm}|}
-\hline
-\textbf{Atribút}   & \textbf{Dátový typ} & \textbf{Obmedzenia} \\
-\hline
-id                 & SERIAL      & PK \\
-id\_zakaznika      & INT         & FK $\to$ \texttt{Zákazník(id)}, ON DELETE SET NULL \\
-cislo\_stola       & INT         & NOT NULL \\
-datum              & DATE        & NOT NULL \\
-cas\_zaciatku      & TIME        & NOT NULL \\
-cas\_konca         & TIME        & NOT NULL, CHECK $>$ \texttt{cas\_zaciatku} \\
-pocet\_osob        & INT         & NOT NULL, CHECK $> 0$ \\
-stav               & ENUM        & NOT NULL, DEFAULT \texttt{potvrdena} --- \texttt{potvrdena}, \texttt{aktivna}, \texttt{ukoncena}, \texttt{zrusena} \\
-\hline
-\end{tabular}
-\caption{Tabuľka \texttt{Rezervacia}}
-\end{table}
-
-\noindent\textbf{Primárny kľúč:} Umelý (\texttt{id}). \\
-\textbf{Cudzie kľúče:}
-\begin{itemize}
-    \item \texttt{id\_zakaznika} $\to$ \texttt{Zákazník(id)} --- SET NULL (rezervácia sa zachováva aj po zmazaní zákazníka)
-\end{itemize}
-\textbf{Poznámka:} Kontrola prekrývania časových intervalov pre rovnaký stôl a~dátum
-je implementovaná na aplikačnej vrstve, keďže štandardný SQL \texttt{CHECK} nepodporuje
-medziriadkové porovnania.
-
-% ── Faktura ──────────────────────────────────────────────
-\subsubsection{Faktura}
-\label{subsubsec:faktura}
-
-\textbf{Účel:} Zaznamenáva platbu spojenú s~konkrétnou objednávkou.
-Existencia záznamu s~\texttt{je\_zaplatena = TRUE} je podmienkou pre prechod
-objednávky do stavu \texttt{zaplatena}.
-
-\begin{table}[H]
-\centering
-\small
-\begin{tabular}{|l|l|p{6.5cm}|}
-\hline
-\textbf{Atribút}   & \textbf{Dátový typ} & \textbf{Obmedzenia} \\
-\hline
-id                 & SERIAL        & PK \\
-id\_objednavky     & INT           & FK $\to$ \texttt{Objednavka(id)}, ON DELETE RESTRICT, UNIQUE, NOT NULL \\
-je\_zaplatena      & BOOLEAN       & NOT NULL, DEFAULT FALSE \\
-sposob\_platby     & ENUM          & NOT NULL --- \texttt{hotovost}, \texttt{karta}, \texttt{online} \\
-\hline
-\end{tabular}
-\caption{Tabuľka \texttt{Faktura}}
-\end{table}
-
-\noindent\textbf{Primárny kľúč:} Umelý (\texttt{id}). \\
-\textbf{Cudzie kľúče:}
-\begin{itemize}
-    \item \texttt{id\_objednavky} $\to$ \texttt{Objednavka(id)} --- RESTRICT + UNIQUE (každá objednávka má najviac jednu faktúru)
-\end{itemize}
-
-% ── Recenzia ─────────────────────────────────────────────
-\subsubsection{Recenzia}
-\label{subsubsec:recenzia}
-
-\textbf{Účel:} Umožňuje zákazníkovi ohodnotiť skúsenosť po dokončení objednávky.
-Prepojenie priamo na objednávku zabraňuje viacnásobnému hodnoteniu tej istej návštevy.
-
-\begin{table}[H]
-\centering
-\small
-\begin{tabular}{|l|l|p{6.5cm}|}
-\hline
-\textbf{Atribút}   & \textbf{Dátový typ} & \textbf{Obmedzenia} \\
-\hline
-id                 & SERIAL    & PK \\
-id\_objednavky     & INT       & FK $\to$ \texttt{Objednavka(id)}, ON DELETE RESTRICT, UNIQUE, NOT NULL \\
-hodnotenie         & INT       & NOT NULL, CHECK BETWEEN 1 AND 5 \\
-komentar           & TEXT      & \\
-cas                & TIMESTAMP & NOT NULL, DEFAULT NOW() \\
-\hline
-\end{tabular}
-\caption{Tabuľka \texttt{Recenzia}}
-\end{table}
-
-\noindent\textbf{Primárny kľúč:} Umelý (\texttt{id}). \\
-\textbf{Cudzie kľúče:}
-\begin{itemize}
-    \item \texttt{id\_objednavky} $\to$ \texttt{Objednavka(id)} --- RESTRICT + UNIQUE (jedna recenzia na objednávku)
-\end{itemize}
-
-% ----------------------------------------------------------
-\subsection{Vzťahy medzi tabuľkami}
+\subsection*{Indexy podporujúce proces}
 
 \begin{itemize}
-    \item \textbf{Objednavka} -- \textbf{DineInObjednavka} (1:1, povinné pre dine-in): Vzťah je realizovaný zdieľaným primárnym kľúčom. \texttt{DineInObjednavka.id} je zároveň cudzí kľúč na \texttt{Objednavka}. CASCADE DELETE zaručuje konzistenciu pri zmazaní objednávky.
-
-    \item \textbf{Objednavka} -- \textbf{DeliveryObjednavka} (1:1, povinné pre delivery): Analogicky k~dine-in. Oba špecializačné záznamy nemôžu existovať súčasne pre tú istú objednávku --- táto podmienka sa vynucuje aplikačnou logikou.
-
-    \item \textbf{Objednavka} -- \textbf{ObjednavkaPolozka} (1:N): Každá objednávka má aspoň jednu položku. Položky sú mazané kaskádovo spolu s~objednávkou.
-
-    \item \textbf{PolozkaMenu} -- \textbf{ObjednavkaPolozka} (1:N): Každá položka menu môže byť súčasťou viacerých objednávok. Mazanie položky menu je blokované (RESTRICT) kým existujú objednávky odkazujúce na ňu.
-
-    \item \textbf{Zamestnanec} -- \textbf{DineInObjednavka} (1:N, voliteľné): Čašník obsluhuje viacero objednávok. Pri odstránení zamestnanca sa \texttt{id\_casnika} nastaví na NULL.
-
-    \item \textbf{Zamestnanec} -- \textbf{DeliveryObjednavka} (1:N, voliteľné): Kuriér doručuje viacero objednávok. \texttt{id\_kuriera} je NULL až do pridelenia.
-
-    \item \textbf{Zákazník} -- \textbf{DeliveryObjednavka} (1:N): Zákazník môže mať viacero donáškových objednávok. RESTRICT zabraňuje zmazaniu zákazníka s~existujúcimi objednávkami.
-
-    \item \textbf{Zákazník} -- \textbf{DineInObjednavka} (1:N, voliteľné): Zákazník môže mať viacero dine-in objednávok. RESTRICT zabraňuje zmazaniu zákazníka s~existujúcimi objednávkami.
-
-    \item \textbf{Zákazník} -- \textbf{Rezervacia} (1:N, voliteľné): Zákazník môže vytvoriť viacero rezervácií. SET NULL zachováva historické rezervácie aj po zmazaní zákazníka.
-
-    \item \textbf{Objednavka} -- \textbf{Faktura} (1:1, voliteľné): Faktúra vzniká až pri platbe. UNIQUE obmedzenie na \texttt{id\_objednavky} zaručuje, že každá objednávka má najviac jednu faktúru.
-
-    \item \textbf{Objednavka} -- \textbf{Recenzia} (1:1, voliteľné): Zákazník môže zanechať najviac jednu recenziu na objednávku. UNIQUE na \texttt{id\_objednavky} vynucuje toto obmedzenie na databázovej úrovni.
+    \item \texttt{idx\_objednavka\_cas\_vytvorenia} podporuje rozsahový filter zvoleného roka.
+    \item \texttt{idx\_faktura\_zaplatena} podporuje výber zaplatených faktúr a join na objednávku.
+    \item \texttt{idx\_objednavkapolozka\_objednavka} podporuje agregáciu položiek podľa objednávky.
 \end{itemize}
 
-% ----------------------------------------------------------
-\subsection{Zabezpečenie integritných obmedzení}
+\section{Výkonnosť a indexy}
 
-\begin{itemize}
-    \item \textbf{Exkluzivita rezervácií} --- kontrola prekrývania časových intervalov pre dané \texttt{cislo\_stola} a~dátum v~tabuľke \texttt{Rezervacia} je implementovaná na aplikačnej vrstve.
+PostgreSQL automaticky vytvára indexy pre \texttt{PRIMARY KEY} a \texttt{UNIQUE} obmedzenia.
+Tieto indexy sa do požadovaného minima nepočítajú. V schéme preto vytvárame päť vlastných
+indexov, ktoré priamo podporujú dva implementované procesy.
 
-    \item \textbf{Podmienka vytvorenia dine-in objednávky} --- pred vytvorením záznamu
-    v~\texttt{DineInObjednavka} systém overí v~\texttt{Rezervacia},
-    či pre dané \texttt{cislo\_stola} existuje aktívna rezervácia (\texttt{stav = aktivna})
-    v~aktuálnom čase. Implementované aplikačnou logikou.
+\subsection*{\texttt{idx\_rezervacia\_stol\_datum}}
 
-    \item \textbf{Podmienka uzavretia objednávky} --- objednávka nemôže prejsť do stavu \texttt{zaplatena} bez záznamu v~\texttt{Faktura} s~\texttt{je\_zaplatena = TRUE}. Implementované stavovým automatom v~aplikačnej vrstve.
+\begin{lstlisting}[language=SQL]
+CREATE INDEX idx_rezervacia_stol_datum
+    ON Rezervacia (cislo_stola, datum, stav);
+\end{lstlisting}
 
-    \item \textbf{Dostupnosť položiek menu} --- podmienka je zabezpečená atribútom \texttt{je\_dostupna} v~tabuľke \texttt{PolozkaMenu}. Aplikačná vrstva pri zostavovaní objednávky načítava iba položky, kde \texttt{je\_dostupna = TRUE}, čím sa na úrovni dopytu vylúčia nedostupné položky.
+Index podporuje proces 1, konkrétne validáciu rezervácie pred vytvorením dine-in objednávky.
+Dopyt filtruje tabuľku \texttt{Rezervacia} podľa \texttt{cislo\_stola}, \texttt{datum} a
+\texttt{stav}. Bez indexu musí databáza prejsť všetky rezervácie sekvenčným skenom a až potom
+odfiltrovať konkrétny stôl, dátum a stav. Index má odstrániť práve tento sekvenčný sken nad
+tabuľkou \texttt{Rezervacia}; zvyšné podmienky na zákazníka a časový interval sa potom aplikujú
+iba na malú množinu kandidátov.
 
-    \item \textbf{Povinnosť adresy pre delivery objednávku} --- obmedzenia \texttt{NOT NULL} na atribútoch \texttt{mesto} a~\texttt{ulica} v~tabuľke \texttt{DeliveryObjednavka} zaručujú, že objednávku typu delivery nie je možné vytvoriť bez vyplnenej doručovacej adresy. Implementované priamo na databázovej úrovni.
+\subsection*{\texttt{idx\_polozka\_dostupna}}
 
-    \item \textbf{Jedinečnosť recenzie} --- UNIQUE obmedzenie na \texttt{Recenzia.id\_objednavky} zabraňuje duplicitným hodnoteniam na databázovej úrovni.
-\end{itemize}
+\begin{lstlisting}[language=SQL]
+CREATE INDEX idx_polozka_dostupna
+    ON PolozkaMenu (je_dostupna);
+\end{lstlisting}
 
-% ----------------------------------------------------------
-\subsection{Realizovateľnosť používateľských scenárov}
+Index podporuje proces 1 pri validácii, že objednávané položky menu existujú a sú dostupné.
+Dopyt používa podmienku \texttt{je\_dostupna = TRUE}. Cieľom indexu je obmedziť skenovanie
+nedostupných položiek pri zostavovaní dostupného menu alebo pri validácii vstupu objednávky.
+Keďže tabuľka menu je v našom seede malá, optimalizátor môže aj tak zvoliť sekvenčný sken; index
+je však opodstatnený pre prípad väčšieho menu alebo častého filtrovania dostupných položiek.
 
-Všetky štyri definované scenáre sú realizovateľné pomocou navrhnutých tabuliek:
-\begin{itemize}
-    \item \textbf{Scenár 1} (Rezervácia stola): tabuľky \texttt{Zákazník}, \texttt{Rezervacia}.
-    \item \textbf{Scenár 2} (Objednanie pri stole): tabuľky \texttt{PolozkaMenu}, \texttt{Objednavka}, \texttt{DineInObjednavka}, \texttt{ObjednavkaPolozka}, \texttt{Faktura}, \texttt{Recenzia}.
-    \item \textbf{Scenár 3} (Donáška): tabuľky \texttt{Zákazník}, \texttt{PolozkaMenu}, \texttt{Objednavka}, \texttt{DeliveryObjednavka}, \texttt{ObjednavkaPolozka}, \texttt{Recenzia}.
-    \item \textbf{Scenár 4} (Príprava a výdaj): tabuľky \texttt{Objednavka}, \texttt{ObjednavkaPolozka}, \texttt{DineInObjednavka}, \texttt{Zamestnanec}.
-\end{itemize}
+\subsection*{\texttt{idx\_objednavkapolozka\_objednavka}}
 
-\newpage
+\begin{lstlisting}[language=SQL]
+CREATE INDEX idx_objednavkapolozka_objednavka
+    ON ObjednavkaPolozka (id_objednavky);
+\end{lstlisting}
+
+Index podporuje oba procesy. V procese 1 sa používa pri načítaní detailu novo vytvorenej
+objednávky a v procese 2 pri agregácii tržby objednávky. Dopyty často hľadajú všetky riadky
+\texttt{ObjednavkaPolozka} pre jedno konkrétne \texttt{id\_objednavky}. PostgreSQL nevytvára index
+automaticky na stĺpci cudzieho kľúča, preto je tento index vlastný. Má obmedziť sekvenčný sken
+celej tabuľky položiek objednávok a nahradiť ho indexovým vyhľadaním položiek konkrétnej
+objednávky.
+
+\subsection*{\texttt{idx\_objednavka\_cas\_vytvorenia}}
+
+\begin{lstlisting}[language=SQL]
+CREATE INDEX idx_objednavka_cas_vytvorenia
+    ON Objednavka (cas_vytvorenia);
+\end{lstlisting}
+
+Index podporuje proces 2, kde manažérsky report filtruje objednávky za zvolený rok. Dopyt je
+zámerne zapísaný ako rozsah:
+
+\begin{lstlisting}[language=SQL]
+WHERE o.cas_vytvorenia >= y.rok_od
+  AND o.cas_vytvorenia <  y.rok_do
+\end{lstlisting}
+
+Takýto zápis je vhodný pre B-tree index nad \texttt{cas\_vytvorenia}. Index má obmedziť
+sekvenčné skenovanie všetkých objednávok pri ročných reportoch. Keby bol filter zapísaný ako
+\texttt{EXTRACT(YEAR FROM cas\_vytvorenia)}, databáza by musela vypočítať výraz pre každý riadok
+a tento index by sa používal horšie alebo vôbec.
+
+\subsection*{\texttt{idx\_faktura\_zaplatena}}
+
+\begin{lstlisting}[language=SQL]
+CREATE INDEX idx_faktura_zaplatena
+    ON Faktura (je_zaplatena, id_objednavky);
+\end{lstlisting}
+
+Index podporuje proces 2. Report má počítať iba reálne tržby, preto pohľad
+\texttt{v\_dine\_in\_trzby} joinuje tabuľku \texttt{Faktura} a filtruje
+\texttt{je\_zaplatena = TRUE}. Prvý stĺpec indexu podporuje filter zaplatených faktúr, druhý stĺpec
+podporuje následný join na \texttt{Objednavka.id}. Index má obmedziť sekvenčný sken tabuľky
+\texttt{Faktura} pri hľadaní zaplatených objednávok.
+
+\subsection*{EXPLAIN porovnanie}
+
+Porovnanie sme spravili pre proces 1, konkrétne pre validáciu rezervácie. Test bol spustený nad
+naplnenou databázou so seed dátami. Najprv sme index \texttt{idx\_rezervacia\_stol\_datum}
+odstránili a spustili plán:
+
+\begin{lstlisting}[language=SQL]
+DROP INDEX IF EXISTS idx_rezervacia_stol_datum;
+
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT r.id, r.id_zakaznika, r.cislo_stola, r.datum,
+       r.cas_zaciatku, r.cas_konca, r.stav
+FROM Rezervacia r
+WHERE r.cislo_stola = 8
+  AND r.id_zakaznika = 320
+  AND r.datum = DATE '2026-05-03'
+  AND TIME '13:15' BETWEEN r.cas_zaciatku AND r.cas_konca
+  AND r.stav = 'potvrdena'
+ORDER BY r.id
+LIMIT 1;
+\end{lstlisting}
+
+Výrez plánu bez indexu:
+
+\begin{lstlisting}
+Limit  (actual time=0.164..0.164 rows=1 loops=1)
+  Buffers: shared hit=16
+  ->  Sort
+        Sort Key: id
+        ->  Seq Scan on rezervacia r
+              Rows Removed by Filter: 1499
+              Buffers: shared hit=13
+Planning Time: 0.531 ms
+Execution Time: 0.189 ms
+\end{lstlisting}
+
+Bez indexu databáza použila \texttt{Seq Scan on rezervacia}. To znamená, že prešla všetkých
+1 500 rezervácií a 1 499 riadkov zahodila filtrom.
+
+Následne sme index vytvorili znova a spustili ten istý dopyt:
+
+\begin{lstlisting}[language=SQL]
+CREATE INDEX idx_rezervacia_stol_datum
+    ON Rezervacia (cislo_stola, datum, stav);
+
+ANALYZE Rezervacia;
+
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT r.id, r.id_zakaznika, r.cislo_stola, r.datum,
+       r.cas_zaciatku, r.cas_konca, r.stav
+FROM Rezervacia r
+WHERE r.cislo_stola = 8
+  AND r.id_zakaznika = 320
+  AND r.datum = DATE '2026-05-03'
+  AND TIME '13:15' BETWEEN r.cas_zaciatku AND r.cas_konca
+  AND r.stav = 'potvrdena'
+ORDER BY r.id
+LIMIT 1;
+\end{lstlisting}
+
+Výrez plánu s indexom:
+
+\begin{lstlisting}
+Limit  (actual time=0.037..0.037 rows=1 loops=1)
+  Buffers: shared hit=1 read=2
+  ->  Sort
+        Sort Key: id
+        ->  Index Scan using idx_rezervacia_stol_datum on rezervacia r
+              Index Cond: ((cislo_stola = 8)
+                           AND (datum = '2026-05-03'::date)
+                           AND (stav = 'potvrdena'::stav_rezervacie))
+              Filter: (id_zakaznika = 320 AND ...)
+Planning Time: 0.264 ms
+Execution Time: 0.059 ms
+\end{lstlisting}
+
+Po vytvorení indexu sa plán zmenil zo sekvenčného skenu na \texttt{Index Scan}. Databáza už
+nehľadala rezerváciu v celej tabuľke, ale použila indexovú podmienku nad stĺpcami
+\texttt{cislo\_stola}, \texttt{datum} a \texttt{stav}. Aj na relatívne malom seede klesol čas
+vykonania z približne \texttt{0.189 ms} na \texttt{0.059 ms}. Zostalo iba malé triedenie podľa
+\texttt{id}, pretože \texttt{id} nie je súčasťou indexu; triedi sa však už len veľmi malá množina
+kandidátnych riadkov.
+
 \section{Zhodnotenie}
-\label{sec:conclusion}
 
-\textbf{Ktorá časť riešenia nám zabrala najviac času?}
-Najnáročnejšou časťou bol návrh samotného relačného modelu --- konkrétne rozhodnutie,
-ako správne reprezentovať dva typy objednávky (dine-in a~delivery) bez zbytočnej
-redundancie. Zvažovali sme jeden typ \texttt{Objednavka} s~voliteľnými atribútmi
-oproti špecializačným tabuľkám. Nakoniec sme zvolili prístup so zdieľaným primárnym kľúčom
-(\texttt{DineInObjednavka} a~\texttt{DeliveryObjednavka} zdieľajú PK s~\texttt{Objednavka}),
-čo si vyžadovalo viac premýšľania, ale výsledok je čistejší a~lepšie odráža fyzický model.
+Najnáročnejšou časťou bolo zosúladiť fyzický model s procesmi tak, aby procesy neboli iba
+jednoduché SELECT dotazy, ale pokrývali reálnu prevádzkovú logiku. Pri procese 1 bolo dôležité
+vytvoriť objednávku čisto v SQL bez PL/pgSQL, ale zároveň zachovať validačné kroky a atomickosť
+zápisu.
 
-\textbf{S čím sme si nevedeli poradiť?}
-Problémom bola kontrola prekrývania časových intervalov rezervácií --- štandardné
-SQL \texttt{CHECK} obmedzenie nedokáže porovnávať hodnoty naprieč riadkami.
-Vyriešili sme to tak, že sme túto logiku explicitne popísali ako kontrolu aplikačnej
-vrstvy a~v~dokumentácii sme na to upozornili.
+Pri implementácii sa ukázalo, že niektoré biznis pravidlá nie je vhodné riešiť obyčajným
+\texttt{CHECK} obmedzením. Typickým príkladom je prekrývanie rezervácií, ktoré vyžaduje kontrolu
+voči iným riadkom. Toto pravidlo preto riešime validačným dotazom v procese.
 
-\textbf{Čo bolo pre nás úplne nové?}
-Nové bolo dôsledné premýšľanie o~integritných obmedzeniach na fyzickej úrovni
-(CASCADE, RESTRICT, SET NULL) a~ich dopad na správanie systému pri mazaní
-záznamov. Tiež sme sa prvýkrát systematicky venovali stavovým automatom
-objednávky a~ich premietnutiu do ENUM atribútov.
+Indexy sme nenavrhovali plošne na všetky stĺpce. Zamerali sme sa na časti dopytov, ktoré sa opakujú
+v procesoch: hľadanie rezervácie podľa stola a dátumu, načítanie položiek objednávky, filter
+zaplatených faktúr a rozsahový filter objednávok podľa dátumu.
 
-\textbf{Pokrýva naše riešenie správne zvolenú tému?}
-Riešenie pokrýva oba prevádzkové modely reštaurácie --- obsluhu pri stole aj donášku.
-Zjednodušili sme správu skladových zásob: dostupnosť položky je riešená príznakom
-\texttt{je\_dostupna} v~\texttt{PolozkaMenu} namiesto samostatnej tabuľky ingrediencií.
-
-\textbf{Aký bol náš pracovný proces?}
-Postupovali sme iteratívne. Najprv sme vypracovali špecifikáciu a~identifikovali
-kľúčové entity. Potom sme navrhli scenáre, ktoré odhalili ďalšie potrebné vzťahy
-a~atribúty. Model sme priebežne upravovali podľa toho, ako sme scenáre detailne
-rozpracovávali. Diagram sme kreslili v~nástroji draw.io v~UML notácii.
-
-\textbf{Použili sme AI nástroje?}
-Áno, AI sme použili ako pomocníka pri formulácii textu špecifikácie a~kontrole
-konzistentnosti opisov scenárov. Výstupy sme vždy kriticky prehodnotili a~upravili
-podľa nášho skutočného návrhu. Samotný relačný model a~biznis pravidlá sme navrhli
-samostatne.
-
-\textbf{Prečo sme si vybrali túto tému?}
-Reštauračný systém sme si vybrali, pretože kombinuje viacero zaujímavých
-návrhových problémov --- správu rezervácií, stavové automaty objednávok, dve
-odlišné typy objednávok a~rôzne role používateľov. Zároveň je to doména, ktorú
-dobre poznáme z~bežného života, čo uľahčilo identifikáciu reálnych biznis pravidiel.
-
-\newpage
-\appendix
-
-\section{Prílohy}
-\label{sec:attachments}
-
-% ─── Scenár 1 ─────────────────────────────────────
-
-\appendixfigure{../assets/diagram1cast1}{Scenár č.1 - Časť 1: Prezeranie dostupných stolov}{fig:app-diagram1cast1}
-
-\appendixfigure{../assets/diagram1cast2}{Scenár č.1 - Časť 2: Registrácia zákazníka a vytvorenie rezervácie}{fig:app-diagram1cast2}
-
-\appendixfigure{../assets/diagram1cast3}{Scenár č.1 - Časť 3: Príchod do reštaurácie}{fig:app-diagram1cast3}
-
-% ─── Scenár 2 ─────────────────────────────────────
-
-\appendixfigure{../assets/diagram2cast1}{Scenár č.2 - Časť 1: Otvorenie menu a potvrdenie objednávky}{fig:app-diagram2cast1}
-
-\appendixfigure{../assets/diagram2cast2}{Scenár č.2 - Časť 2: Sledovanie stavu a doručenie jedla}{fig:app-diagram2cast2}
-
-\appendixfigure{../assets/diagram2cast3}{Scenár č.2 - Časť 3: Účet, platba a recenzia}{fig:app-diagram2cast3}
-
-% ─── Scenár 3 ─────────────────────────────────────
-
-\appendixfigure{../assets/diagram3cast1}{Scenár č.3 - Časť 1: Prihlásenie, výber položiek a potvrdenie objednávky}{fig:app-diagram3cast1}
-
-\appendixfigure{../assets/diagram3cast2}{Scenár č.3 - Časť 2: Sledovanie stavu, doručenie a recenzia}{fig:app-diagram3cast2}
-
-% ─── Scenár 4 ─────────────────────────────────────
-
-\appendixfigure{../assets/diagram4cast1}{Scenár č.4 - Príprava objednávky kuchárom a výdaj čašníkom}{fig:app-diagram4cast1}
-
-% ─── Relačný model ────────────────────────────────
-
-\appendixfigure{../assets/relacny_model}{Relačný model reštauračného systému (fyzický model, UML notácia)}{fig:app-relacny-model}
+AI nástroje sme použili ako pomoc pri kontrole konzistentnosti textu, formulácii reportu a
+prepisovaní SQL procesu do čistej deklaratívnej podoby. Výsledné SQL a model sme skontrolovali
+voči zadaniu a upravili podľa reálnych tabuliek v projekte.
 
 \end{document}
