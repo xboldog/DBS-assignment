@@ -65,12 +65,9 @@ WHERE r.stav = 'potvrdena';
 --
 -- Popis:
 --   Zakaznik pride do restauracie a chce si sadnut k stolu. System overi:
---     (1) ze zakaznik existuje,
---     (2) ze pre dany stol a zakaznika existuje potvrdena rezervacia
+--     (1) ze pre dany stol a zakaznika existuje potvrdena rezervacia
 --         na zadany datum a cas prichodu,
---     (3) ze zadany zamestnanec existuje a ma rolu casnik,
---     (4) ze vsetky objednavane polozky existuju, su dostupne a maju kladne
---         mnozstvo.
+--     (2) ze vsetky objednavane polozky su dostupne.
 --
 --   Ak vsetky podmienky platia, prikaz atomicky:
 --     - zmeni rezervaciu na stav aktivna,
@@ -78,9 +75,8 @@ WHERE r.stav = 'potvrdena';
 --     - vlozi specializaciu do DineInObjednavka,
 --     - vlozi polozky do ObjednavkaPolozka so snimkou aktualnej ceny.
 --
--- Tabulky (7):
---   Zakaznik, Zamestnanec, Rezervacia, PolozkaMenu,
---   Objednavka, DineInObjednavka, ObjednavkaPolozka
+-- Tabulky (5):
+--   Rezervacia, PolozkaMenu, Objednavka, DineInObjednavka, ObjednavkaPolozka
 -- =============================================================================
 
 WITH
@@ -102,82 +98,26 @@ valid_reservation AS (
     SELECT r.*
     FROM Rezervacia r
     JOIN params p
-      ON p.cislo_stola = r.cislo_stola
+      ON p.cislo_stola  = r.cislo_stola
      AND p.id_zakaznika = r.id_zakaznika
-     AND p.datum = r.datum
+     AND p.datum        = r.datum
      AND p.cas_prichodu BETWEEN r.cas_zaciatku AND r.cas_konca
     WHERE r.stav = 'potvrdena'
-    ORDER BY r.id
     LIMIT 1
-),
-validation_errors AS (
-    SELECT format('[CHYBA] Zakaznik id=%s neexistuje.', p.id_zakaznika) AS sprava
-    FROM params p
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM Zakaznik z
-        WHERE z.id = p.id_zakaznika
-    )
-
-    UNION ALL
-
-    SELECT
-        CASE
-            WHEN EXISTS (
-                SELECT 1
-                FROM Rezervacia r
-                WHERE r.cislo_stola = p.cislo_stola
-                  AND r.id_zakaznika = p.id_zakaznika
-                  AND r.datum = p.datum
-                  AND r.stav = 'potvrdena'
-                  AND r.cas_konca < p.cas_prichodu
-            )
-            THEN format(
-                '[CHYBA] Rezervacia pre stol c. %s a zakaznika id=%s na datum %s uz vyprsala.',
-                p.cislo_stola, p.id_zakaznika, p.datum
-            )
-            ELSE format(
-                '[CHYBA] Pre stol c. %s a zakaznika id=%s neexistuje potvrdena rezervacia na datum %s v case %s.',
-                p.cislo_stola, p.id_zakaznika, p.datum, p.cas_prichodu
-            )
-        END AS sprava
-    FROM params p
-    WHERE NOT EXISTS (SELECT 1 FROM valid_reservation)
-
-    UNION ALL
-
-    SELECT format('[CHYBA] Zamestnanec id=%s nie je casnik alebo neexistuje.', p.id_casnika)
-    FROM params p
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM Zamestnanec z
-        WHERE z.id = p.id_casnika
-          AND z.typ = 'casnik'
-    )
-
-    UNION ALL
-
-    SELECT format('[CHYBA] Mnozstvo pre polozku menu id=%s musi byt kladne.', i.polozka_id)
-    FROM input_items i
-    WHERE i.mnozstvo <= 0
-
-    UNION ALL
-
-    SELECT format('[CHYBA] Polozka menu id=%s nie je dostupna alebo neexistuje.', i.polozka_id)
-    FROM input_items i
-    WHERE NOT EXISTS (
-        SELECT 1
-        FROM PolozkaMenu pm
-        WHERE pm.id = i.polozka_id
-          AND pm.je_dostupna = TRUE
-    )
 ),
 activated_reservation AS (
     UPDATE Rezervacia r
     SET stav = 'aktivna'
     FROM valid_reservation vr
     WHERE r.id = vr.id
-      AND NOT EXISTS (SELECT 1 FROM validation_errors)
+      AND NOT EXISTS (
+          SELECT 1 FROM input_items i
+          WHERE i.mnozstvo <= 0
+             OR NOT EXISTS (
+                 SELECT 1 FROM PolozkaMenu pm
+                 WHERE pm.id = i.polozka_id AND pm.je_dostupna = TRUE
+             )
+      )
     RETURNING r.id
 ),
 inserted_order AS (
@@ -189,73 +129,63 @@ inserted_order AS (
 ),
 inserted_dine_in AS (
     INSERT INTO DineInObjednavka (id, id_zakaznika, cislo_stola, id_casnika)
-    SELECT
-        o.id,
-        p.id_zakaznika,
-        p.cislo_stola,
-        p.id_casnika
-    FROM inserted_order o
-    CROSS JOIN params p
-    RETURNING id, id_zakaznika, cislo_stola, id_casnika
+    SELECT o.id, p.id_zakaznika, p.cislo_stola, p.id_casnika
+    FROM inserted_order o CROSS JOIN params p
+    RETURNING id, cislo_stola
 ),
 inserted_items AS (
     INSERT INTO ObjednavkaPolozka
         (id_objednavky, id_polozky, mnozstvo, cena_v_case_objednavky)
-    SELECT
-        o.id,
-        pm.id,
-        i.mnozstvo,
-        pm.aktualna_cena
+    SELECT o.id, pm.id, i.mnozstvo, pm.aktualna_cena
     FROM inserted_order o
     CROSS JOIN input_items i
-    JOIN PolozkaMenu pm
-      ON pm.id = i.polozka_id
-     AND pm.je_dostupna = TRUE
+    JOIN PolozkaMenu pm ON pm.id = i.polozka_id AND pm.je_dostupna = TRUE
     RETURNING id_objednavky, id_polozky, mnozstvo, cena_v_case_objednavky
 )
 SELECT *
 FROM (
+    -- Uspesne vytvorena objednavka: jeden riadok na polozku
     SELECT
-        'OK'                                      AS vysledok,
-        o.id                                      AS id_objednavky,
-        o.stav                                    AS stav,
-        o.cas_vytvorenia                          AS cas_vytvorenia,
+        'OK'                                                        AS vysledok,
+        o.id                                                        AS id_objednavky,
+        o.stav,
+        o.cas_vytvorenia,
         d.cislo_stola,
-        zak.meno || ' ' || zak.priezvisko        AS zakaznik,
-        z.meno || ' ' || z.priezvisko            AS casnik,
-        pm.nazov                                  AS polozka,
+        pm.nazov                                                    AS polozka,
         ii.mnozstvo,
-        ii.cena_v_case_objednavky                 AS cena_za_kus,
-        ii.mnozstvo * ii.cena_v_case_objednavky   AS subtotal,
+        ii.cena_v_case_objednavky                                   AS cena_za_kus,
+        ii.mnozstvo * ii.cena_v_case_objednavky                     AS subtotal,
         SUM(ii.mnozstvo * ii.cena_v_case_objednavky)
-            OVER (PARTITION BY ii.id_objednavky)  AS celkova_suma_eur,
-        format('[OK] Objednavka id=%s uspesne vytvorena.', o.id) AS sprava
-    FROM inserted_order o
-    JOIN inserted_dine_in d ON d.id = o.id
-    JOIN Zakaznik zak ON zak.id = d.id_zakaznika
-    JOIN Zamestnanec z ON z.id = d.id_casnika
-    JOIN inserted_items ii ON ii.id_objednavky = o.id
-    JOIN PolozkaMenu pm ON pm.id = ii.id_polozky
+            OVER (PARTITION BY ii.id_objednavky)                    AS celkova_suma_eur,
+        format('[OK] Objednavka id=%s uspesne vytvorena.', o.id)    AS sprava
+    FROM inserted_order  o
+    JOIN inserted_dine_in d  ON d.id          = o.id
+    JOIN inserted_items  ii  ON ii.id_objednavky = o.id
+    JOIN PolozkaMenu     pm  ON pm.id         = ii.id_polozky
 
     UNION ALL
 
-    SELECT
-        'CHYBA',
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        e.sprava
-    FROM validation_errors e
+    -- Chyba: rezervacia nenajdena
+    SELECT 'CHYBA', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+        format('[CHYBA] Pre stol c. %s a zakaznika id=%s neexistuje potvrdena rezervacia na datum %s v case %s.',
+            p.cislo_stola, p.id_zakaznika, p.datum, p.cas_prichodu)
+    FROM params p
+    WHERE NOT EXISTS (SELECT 1 FROM valid_reservation)
+
+    UNION ALL
+
+    -- Chyba: nedostupna polozka menu
+    SELECT 'CHYBA', NULL, NULL, NULL, NULL,
+        format('polozka id=%s', i.polozka_id),
+        NULL, NULL, NULL, NULL,
+        format('[CHYBA] Polozka menu id=%s nie je dostupna alebo neexistuje.', i.polozka_id)
+    FROM input_items i
+    WHERE NOT EXISTS (
+        SELECT 1 FROM PolozkaMenu pm
+        WHERE pm.id = i.polozka_id AND pm.je_dostupna = TRUE
+    )
 ) vysledok_procesu
-ORDER BY vysledok, polozka NULLS LAST, sprava;
+ORDER BY vysledok, polozka NULLS LAST;
 
 
 -- =============================================================================
