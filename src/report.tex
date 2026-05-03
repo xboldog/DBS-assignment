@@ -84,7 +84,7 @@
 
 \renewcommand{\contentsname}{\LabelContents}
 \tableofcontents
-\newpage
+\clearpage
 
 % Titulná stránka je kapitola 1 podľa zadania, preto číslovanie začína sekciou 2.
 \setcounter{section}{1}
@@ -102,6 +102,7 @@ Najdôležitejšie spresnenia voči návrhu sú:
     \item stavové atribúty sú implementované ako PostgreSQL ENUM typy,
     \item historická cena položky objednávky je uložená v \texttt{ObjednavkaPolozka.cena\_v\_case\_objednavky},
     \item prekrývanie rezervácií sa nevynucuje cez \texttt{CHECK}, pretože ide o medziriadkové pravidlo; procesy ho kontrolujú dotazom,
+    \item vzťahy \texttt{Objednavka}--\texttt{Faktura} a \texttt{Objednavka}--\texttt{Recenzia} sú spresnené ako voliteľné 1:1; oproti pôvodnému diagramu sme opravili kardinalitu na strane faktúry a recenzie z \texttt{0..*} na \texttt{0..1},
     \item proces vytvorenia dine-in objednávky po úspešnom overení prepne rezerváciu do stavu \texttt{aktivna}.
 \end{itemize}
 
@@ -111,9 +112,10 @@ Najdôležitejšie spresnenia voči návrhu sú:
     \caption{Aktuálny fyzický model databázy}
 \end{figure}
 
+\clearpage
 \section{Fyzický model - implementácia}
 
-Fyzický model je implementovaný v súbore \texttt{src/schema.sql}. Skript najprv odstráni existujúce
+Fyzický model je implementovaný v súbore \texttt{schema.sql}. Skript najprv odstráni existujúce
 tabuľky a ENUM typy, následne vytvorí všetky typy, tabuľky, integritné obmedzenia a vlastné indexy.
 
 \begin{table}[H]
@@ -150,6 +152,25 @@ Model používa primárne kľúče typu \texttt{SERIAL}, cudzie kľúče, \textt
     \item \texttt{Faktura.id\_objednavky} a \texttt{Recenzia.id\_objednavky} sú unikátne, teda k objednávke existuje najviac jedna faktúra a najviac jedna recenzia.
 \end{itemize}
 
+\subsection*{Väzba na biznis pravidlá zo Zadania 1}
+
+Fyzický model a seed dáta boli skontrolované voči pravidlám zo Zadania 1. Jednoznačnosť kontaktov
+zákazníkov a zamestnancov vynucujú \texttt{UNIQUE} obmedzenia na \texttt{email} a \texttt{tel} a
+generátor používa unikátne hodnoty. Kladné ceny, mzdy, množstvá a počet osôb sú chránené
+\texttt{CHECK} obmedzeniami a seed ich generuje iba v povolených rozsahoch. Delivery objednávka má
+povinné mesto a ulicu, takže ju nemožno vložiť bez doručovacej adresy.
+
+Dostupnosť menu položiek je chránená v procese vytvorenia objednávky cez filter
+\texttt{je\_dostupna = TRUE}; seed zároveň vyberá do objednávok iba dostupné položky. Historická cena
+je uložená priamo v \texttt{ObjednavkaPolozka.cena\_v\_case\_objednavky}, takže zmeny aktuálnej ceny menu
+neskreslia staré objednávky. Jedinečnosť faktúry a recenzie na objednávku vynucuje
+\texttt{UNIQUE} na \texttt{id\_objednavky}; seed negeneruje duplicitné faktúry ani duplicitné recenzie.
+
+Pravidlo neprekrývania rezervácií je medziriadkové. V schéme je preto priamo vynútený aspoň platný
+časový interval rezervácie (\texttt{cas\_konca > cas\_zaciatku}) a operačný proces pracuje iba s jednou
+potvrdenou rezerváciou pre konkrétny stôl, zákazníka, dátum a čas. Seed bol upravený tak, aby sa
+potvrdené a aktívne rezervácie rovnakého stola časovo neprekrývali.
+
 \subsection*{ON DELETE stratégie}
 
 \begin{itemize}
@@ -158,12 +179,14 @@ Model používa primárne kľúče typu \texttt{SERIAL}, cudzie kľúče, \textt
     \item \texttt{ON DELETE SET NULL} sa používa pri voliteľných väzbách na zamestnanca alebo zákazníka, kde chceme zachovať historický záznam aj po odstránení osoby.
 \end{itemize}
 
+\clearpage
 \section{Seed dáta}
 
-Seed dáta sú generované skriptom \texttt{seed.py} pomocou knižnice Faker so slovenskou lokalizáciou
+Seed dáta sú generované skriptom \texttt{seed/seed.py} pomocou knižnice Faker so slovenskou lokalizáciou
 \texttt{sk\_SK}. Generovanie je reprodukovateľné, pretože skript používa fixný seed
-\texttt{SEED = 42}. Výstupom je súbor \texttt{seed.sql}, ktorý vkladá dáta do všetkých hlavných tabuliek
-a na konci nastaví hodnoty sekvencií cez \texttt{setval}.
+\texttt{SEED = 42}. Výstupom je súbor \texttt{seed/seed.sql}, ktorý vkladá dáta do všetkých hlavných
+tabuliek a na konci nastaví hodnoty sekvencií cez \texttt{setval}. Reprodukcia seedu je popísaná v
+\texttt{seed/README.md}.
 
 \begin{table}[H]
 \centering
@@ -199,6 +222,7 @@ Konzistencia je zabezpečená poradím generovania dát. Najprv vznikajú refere
 špecializácie objednávok, položky, faktúry a recenzie. Generátor vyberá iba existujúce cudzie kľúče
 a rešpektuje roly zamestnancov pri čašníkoch a kuriéroch.
 
+\clearpage
 \section{Proces 1 - Vytvorenie dine-in objednávky}
 
 \subsection*{Popis procesu}
@@ -212,9 +236,16 @@ dostupnosť všetkých položiek menu. Ak všetky kontroly prejdú, v jednom SQL
 rezervácia a vložia sa záznamy do \texttt{Objednavka}, \texttt{DineInObjednavka} a
 \texttt{ObjednavkaPolozka}.
 
+\subsection*{Väzba na scenár zo Zadania 1}
+
+Proces priamo nadväzuje na Scenár č. 1 - Rezervácia stola a príchod do reštaurácie a na začiatok
+Scenára č. 2 - Objednanie jedla, platba a recenzia. Zo Scenára č. 1 preberá overenie rezervácie pri
+príchode zákazníka a jej prepnutie do stavu \texttt{aktivna}; zo Scenára č. 2 preberá vytvorenie
+dine-in objednávky, kontrolu dostupných položiek menu a uloženie snímky ceny.
+
 \subsection*{SQL implementácia}
 
-Implementácia je v súbore \texttt{src/queries.sql}. Používa CTE, \texttt{UPDATE},
+Implementácia je v súbore \texttt{queries.sql}. Používa CTE, \texttt{UPDATE},
 \texttt{INSERT ... RETURNING} a finálny \texttt{SELECT}. Nepoužíva PL/pgSQL blok
 \texttt{DO}, vlastné uložené funkcie, procedúry, triggery ani kurzory.
 
@@ -285,6 +316,7 @@ Snímka ceny sa berie z aktuálnej ceny v \texttt{PolozkaMenu} v momente vytvore
     \item \texttt{idx\_objednavkapolozka\_objednavka} zrýchľuje načítanie položiek vytvorenej objednávky.
 \end{itemize}
 
+\clearpage
 \section{Proces 2 - Výkonnostný report čašníkov}
 
 \subsection*{Popis procesu}
@@ -293,6 +325,13 @@ Manažér chce za zvolený rok vidieť výkon jednotlivých čašníkov. Report 
 dine-in objednávkami, teda so záznamami, ku ktorým existuje faktúra s
 \texttt{je\_zaplatena = TRUE}. Výstup obsahuje počet objednávok, celkovú tržbu, priemernú hodnotu
 objednávky, priemerné hodnotenie, poradie podľa tržby, percentuálny podiel a kumulatívnu tržbu.
+
+\subsection*{Väzba na scenár zo Zadania 1}
+
+Proces využíva dáta, ktoré vznikajú v Scenári č. 2 - Objednanie jedla, platba a recenzia: dine-in
+objednávky, položky objednávky, faktúry a recenzie. Zároveň nadväzuje na manažérsku rolu zo
+špecifikácie Zadania 1, kde manažér generuje prevádzkové reporty a potrebuje prehľad o výkone
+čašníkov.
 
 \subsection*{SQL implementácia}
 
@@ -351,6 +390,7 @@ nezapočítavajú. Join na \texttt{Faktura} zabezpečí, že report reprezentuje
     \item \texttt{idx\_objednavkapolozka\_objednavka} podporuje agregáciu položiek podľa objednávky.
 \end{itemize}
 
+\clearpage
 \section{Výkonnosť a indexy}
 
 PostgreSQL automaticky vytvára indexy pre \texttt{PRIMARY KEY} a \texttt{UNIQUE} obmedzenia.
@@ -514,6 +554,7 @@ vykonania z približne \texttt{0.189 ms} na \texttt{0.059 ms}. Zostalo iba malé
 \texttt{id}, pretože \texttt{id} nie je súčasťou indexu; triedi sa však už len veľmi malá množina
 kandidátnych riadkov.
 
+\clearpage
 \section{Zhodnotenie}
 
 Najnáročnejšou časťou bolo zosúladiť fyzický model s procesmi tak, aby procesy neboli iba

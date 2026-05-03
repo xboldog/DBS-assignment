@@ -295,6 +295,21 @@ def gen_rezervacia(n: int, zakaznik_ids: list) -> list[dict]:
                 weights=[88, 12]
             )[0]
 
+        if stav in ("potvrdena", "aktivna"):
+            prekryva = any(
+                r["datum"] == d
+                and r["cislo_stola"] == cislo_stola
+                and r["stav"] in ("potvrdena", "aktivna")
+                and zac < r["cas_konca"]
+                and koniec > r["cas_zaciatku"]
+                for r in rows
+            )
+            if prekryva:
+                if stav == "aktivna":
+                    aktivne_count -= 1
+                    aktivne_stoly_pouzite.discard(cislo_stola)
+                stav = "zrusena"
+
         rows.append({
             "id_zakaznika": random.choice(zakaznik_ids),
             "cislo_stola":  cislo_stola,

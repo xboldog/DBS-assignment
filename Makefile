@@ -3,7 +3,7 @@
 all: build clean
 
 build:
-	cd src && pdflatex report.tex && bibtex report && pdflatex report.tex && pdflatex report.tex
+	cd src && pdflatex -interaction=nonstopmode -halt-on-error report.tex && pdflatex -interaction=nonstopmode -halt-on-error report.tex
 
 clean:
-	cd src && rm -f *.aux *.bbl *.blg *.log *.out *.toc *.run.xml *.bcf
+	powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue src/*.aux,src/*.bbl,src/*.blg,src/*.log,src/*.out,src/*.toc,src/*.run.xml,src/*.bcf,src/*.fls,src/*.fdb_latexmk"

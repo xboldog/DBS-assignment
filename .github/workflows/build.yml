@@ -18,13 +18,13 @@ jobs:
         uses: xu-cheng/latex-action@v4
         with:
           working_directory: src
-          root_file: main.tex
+          root_file: report.tex
 
       - name: Rename PDF
         run: |
           REPO_NAME="${GITHUB_REPOSITORY##*/}"
           SHORT_SHA="${GITHUB_SHA::7}"
-          mv src/main.pdf "src/${REPO_NAME}-${SHORT_SHA}.pdf"
+          mv src/report.pdf "src/${REPO_NAME}-${SHORT_SHA}.pdf"
 
       - name: Upload PDF
         uses: actions/upload-artifact@v6
