@@ -12,7 +12,6 @@
 *.synctex.gz
 
 # Output
-*.pdf
 
 # macOS
 .DS_Store

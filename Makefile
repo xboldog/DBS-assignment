@@ -3,7 +3,7 @@
 all: build clean
 
 build:
-	cd src && pdflatex main.tex && bibtex main && pdflatex main.tex && pdflatex main.tex
+	cd src && pdflatex report.tex && bibtex report && pdflatex report.tex && pdflatex report.tex
 
 clean:
 	cd src && rm -f *.aux *.bbl *.blg *.log *.out *.toc *.run.xml *.bcf
