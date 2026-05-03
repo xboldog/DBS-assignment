@@ -86,11 +86,11 @@ WHERE r.stav = 'potvrdena';
 WITH
 params AS (
     SELECT
-        current_setting('myapp.p_cislo_stola')::INT  AS p_cislo_stola,
-        current_setting('myapp.p_id_zakaznika')::INT AS p_id_zakaznika,
-        current_setting('myapp.p_id_casnika')::INT   AS p_id_casnika,
-        current_setting('myapp.p_datum')::DATE       AS p_datum,
-        current_setting('myapp.p_cas')::TIME         AS p_cas
+        current_setting('myapp.p_cislo_stola')::INT  AS cislo_stola,
+        current_setting('myapp.p_id_zakaznika')::INT AS id_zakaznika,
+        current_setting('myapp.p_id_casnika')::INT   AS id_casnika,
+        current_setting('myapp.p_datum')::DATE       AS datum,
+        current_setting('myapp.p_cas')::TIME         AS cas_prichodu
 ),
 input_items(polozka_id, mnozstvo) AS (
     VALUES
@@ -102,80 +102,75 @@ valid_reservation AS (
     SELECT r.*
     FROM Rezervacia r
     JOIN params p
-      ON p.p_cislo_stola  = r.cislo_stola
-     AND p.p_id_zakaznika = r.id_zakaznika
-     AND p.p_datum        = r.datum
-     AND p.p_cas BETWEEN r.cas_zaciatku AND r.cas_konca
+      ON p.cislo_stola = r.cislo_stola
+     AND p.id_zakaznika = r.id_zakaznika
+     AND p.datum = r.datum
+     AND p.cas_prichodu BETWEEN r.cas_zaciatku AND r.cas_konca
     WHERE r.stav = 'potvrdena'
     ORDER BY r.id
     LIMIT 1
 ),
-valid_items AS (
-    SELECT
-        i.polozka_id,
-        i.mnozstvo,
-        pm.nazov,
-        pm.aktualna_cena
-    FROM input_items i
-    JOIN PolozkaMenu pm ON pm.id = i.polozka_id
-    WHERE i.mnozstvo > 0
-      AND pm.je_dostupna = TRUE
-),
 validation_errors AS (
-    SELECT format('[CHYBA] Zakaznik id=%s neexistuje.', p.p_id_zakaznika) AS sprava
+    SELECT format('[CHYBA] Zakaznik id=%s neexistuje.', p.id_zakaznika) AS sprava
     FROM params p
     WHERE NOT EXISTS (
         SELECT 1
         FROM Zakaznik z
-        WHERE z.id = p.p_id_zakaznika
+        WHERE z.id = p.id_zakaznika
     )
 
     UNION ALL
+
     SELECT
         CASE
             WHEN EXISTS (
                 SELECT 1
                 FROM Rezervacia r
-                WHERE r.cislo_stola  = p.p_cislo_stola
-                  AND r.id_zakaznika = p.p_id_zakaznika
-                  AND r.datum        = p.p_datum
-                  AND r.stav         = 'potvrdena'
-                  AND r.cas_konca    < p.p_cas
+                WHERE r.cislo_stola = p.cislo_stola
+                  AND r.id_zakaznika = p.id_zakaznika
+                  AND r.datum = p.datum
+                  AND r.stav = 'potvrdena'
+                  AND r.cas_konca < p.cas_prichodu
             )
             THEN format(
                 '[CHYBA] Rezervacia pre stol c. %s a zakaznika id=%s na datum %s uz vyprsala.',
-                p.p_cislo_stola, p.p_id_zakaznika, p.p_datum
+                p.cislo_stola, p.id_zakaznika, p.datum
             )
             ELSE format(
                 '[CHYBA] Pre stol c. %s a zakaznika id=%s neexistuje potvrdena rezervacia na datum %s v case %s.',
-                p.p_cislo_stola, p.p_id_zakaznika, p.p_datum, p.p_cas
+                p.cislo_stola, p.id_zakaznika, p.datum, p.cas_prichodu
             )
         END AS sprava
     FROM params p
     WHERE NOT EXISTS (SELECT 1 FROM valid_reservation)
 
     UNION ALL
-    SELECT format('[CHYBA] Zamestnanec id=%s nie je casnik alebo neexistuje.', p.p_id_casnika)
+
+    SELECT format('[CHYBA] Zamestnanec id=%s nie je casnik alebo neexistuje.', p.id_casnika)
     FROM params p
     WHERE NOT EXISTS (
         SELECT 1
         FROM Zamestnanec z
-        WHERE z.id = p.p_id_casnika
+        WHERE z.id = p.id_casnika
           AND z.typ = 'casnik'
     )
 
     UNION ALL
+
     SELECT format('[CHYBA] Mnozstvo pre polozku menu id=%s musi byt kladne.', i.polozka_id)
     FROM input_items i
     WHERE i.mnozstvo <= 0
 
     UNION ALL
+
     SELECT format('[CHYBA] Polozka menu id=%s nie je dostupna alebo neexistuje.', i.polozka_id)
     FROM input_items i
-    LEFT JOIN PolozkaMenu pm
-      ON pm.id = i.polozka_id
-     AND pm.je_dostupna = TRUE
-    WHERE pm.id IS NULL
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM PolozkaMenu pm
+        WHERE pm.id = i.polozka_id
+          AND pm.je_dostupna = TRUE
+    )
 ),
 activated_reservation AS (
     UPDATE Rezervacia r
@@ -183,11 +178,11 @@ activated_reservation AS (
     FROM valid_reservation vr
     WHERE r.id = vr.id
       AND NOT EXISTS (SELECT 1 FROM validation_errors)
-    RETURNING r.id AS id_rezervacie
+    RETURNING r.id
 ),
 inserted_order AS (
-    INSERT INTO Objednavka (stav, cas_vytvorenia)
-    SELECT 'nova'::stav_objednavky, p.p_datum + p.p_cas
+    INSERT INTO Objednavka (cas_vytvorenia)
+    SELECT p.datum + p.cas_prichodu
     FROM params p
     WHERE EXISTS (SELECT 1 FROM activated_reservation)
     RETURNING id, stav, cas_vytvorenia
@@ -196,69 +191,70 @@ inserted_dine_in AS (
     INSERT INTO DineInObjednavka (id, id_zakaznika, cislo_stola, id_casnika)
     SELECT
         o.id,
-        p.p_id_zakaznika,
-        p.p_cislo_stola,
-        p.p_id_casnika
+        p.id_zakaznika,
+        p.cislo_stola,
+        p.id_casnika
     FROM inserted_order o
     CROSS JOIN params p
     RETURNING id, id_zakaznika, cislo_stola, id_casnika
 ),
 inserted_items AS (
     INSERT INTO ObjednavkaPolozka
-        (id_objednavky, id_polozky, mnozstvo, stav, cena_v_case_objednavky)
+        (id_objednavky, id_polozky, mnozstvo, cena_v_case_objednavky)
     SELECT
         o.id,
-        vi.polozka_id,
-        vi.mnozstvo,
-        'nova'::stav_polozky,
-        vi.aktualna_cena
+        pm.id,
+        i.mnozstvo,
+        pm.aktualna_cena
     FROM inserted_order o
-    JOIN valid_items vi ON TRUE
+    CROSS JOIN input_items i
+    JOIN PolozkaMenu pm
+      ON pm.id = i.polozka_id
+     AND pm.je_dostupna = TRUE
     RETURNING id_objednavky, id_polozky, mnozstvo, cena_v_case_objednavky
-),
-success_rows AS (
+)
+SELECT *
+FROM (
     SELECT
-        'OK'::TEXT                                  AS vysledok,
-        o.id                                        AS id_objednavky,
-        o.stav::TEXT                                AS stav,
-        o.cas_vytvorenia                            AS cas_vytvorenia,
+        'OK'                                      AS vysledok,
+        o.id                                      AS id_objednavky,
+        o.stav                                    AS stav,
+        o.cas_vytvorenia                          AS cas_vytvorenia,
         d.cislo_stola,
-        zak.meno || ' ' || zak.priezvisko          AS zakaznik,
-        z.meno   || ' ' || z.priezvisko            AS casnik,
-        pm.nazov                                    AS polozka,
+        zak.meno || ' ' || zak.priezvisko        AS zakaznik,
+        z.meno || ' ' || z.priezvisko            AS casnik,
+        pm.nazov                                  AS polozka,
         ii.mnozstvo,
-        ii.cena_v_case_objednavky                   AS cena_za_kus,
-        ii.mnozstvo * ii.cena_v_case_objednavky     AS subtotal,
+        ii.cena_v_case_objednavky                 AS cena_za_kus,
+        ii.mnozstvo * ii.cena_v_case_objednavky   AS subtotal,
         SUM(ii.mnozstvo * ii.cena_v_case_objednavky)
-            OVER (PARTITION BY ii.id_objednavky)    AS celkova_suma_eur,
+            OVER (PARTITION BY ii.id_objednavky)  AS celkova_suma_eur,
         format('[OK] Objednavka id=%s uspesne vytvorena.', o.id) AS sprava
     FROM inserted_order o
     JOIN inserted_dine_in d ON d.id = o.id
-    JOIN Zakaznik zak       ON zak.id = d.id_zakaznika
-    JOIN Zamestnanec z      ON z.id = d.id_casnika
-    JOIN inserted_items ii  ON ii.id_objednavky = o.id
-    JOIN PolozkaMenu pm     ON pm.id = ii.id_polozky
-)
-SELECT *
-FROM success_rows
+    JOIN Zakaznik zak ON zak.id = d.id_zakaznika
+    JOIN Zamestnanec z ON z.id = d.id_casnika
+    JOIN inserted_items ii ON ii.id_objednavky = o.id
+    JOIN PolozkaMenu pm ON pm.id = ii.id_polozky
 
-UNION ALL
+    UNION ALL
 
-SELECT
-    'CHYBA'::TEXT      AS vysledok,
-    NULL::INT          AS id_objednavky,
-    NULL::TEXT         AS stav,
-    NULL::TIMESTAMP    AS cas_vytvorenia,
-    NULL::INT          AS cislo_stola,
-    NULL::TEXT         AS zakaznik,
-    NULL::TEXT         AS casnik,
-    NULL::TEXT         AS polozka,
-    NULL::INT          AS mnozstvo,
-    NULL::NUMERIC      AS cena_za_kus,
-    NULL::NUMERIC      AS subtotal,
-    NULL::NUMERIC      AS celkova_suma_eur,
-    sprava
-FROM validation_errors
+    SELECT
+        'CHYBA',
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        e.sprava
+    FROM validation_errors e
+) vysledok_procesu
 ORDER BY vysledok, polozka NULLS LAST, sprava;
 
 
@@ -296,39 +292,18 @@ JOIN ObjednavkaPolozka  op ON op.id_objednavky = o.id
 WHERE o.stav <> 'zrusena'
 GROUP BY o.id, o.cas_vytvorenia, d.id_casnika;
 
--- Hlavny analyticky dopyt
-WITH
-year_bounds AS (
-    SELECT
-        (current_setting('myapp.p_rok') || '-01-01')::TIMESTAMP AS rok_od,
-        ((current_setting('myapp.p_rok')::INT + 1)::TEXT || '-01-01')::TIMESTAMP AS rok_do
-),
-casnik_stats AS (
-    SELECT
-        t.id_casnika,
-        COUNT(*)                                AS pocet_objednavok,
-        ROUND(SUM(t.trzba_objednavky), 2)       AS celkova_trzba,
-        ROUND(AVG(t.trzba_objednavky), 2)       AS avg_hodnota_objednavky
-    FROM v_dine_in_trzby t
-    CROSS JOIN year_bounds y
-    WHERE t.cas_vytvorenia >= y.rok_od
-      AND t.cas_vytvorenia <  y.rok_do
-    GROUP BY t.id_casnika
-),
-casnik_hodnotenia AS (
-    SELECT
-        d.id_casnika,
-        ROUND(AVG(r.hodnotenie), 2)             AS avg_hodnotenie,
-        COUNT(r.id)                             AS pocet_recenzii
-    FROM Recenzia           r
-    JOIN Objednavka         o  ON o.id = r.id_objednavky
-    JOIN DineInObjednavka   d  ON d.id = o.id
-    CROSS JOIN year_bounds y
-    WHERE o.cas_vytvorenia >= y.rok_od
-      AND o.cas_vytvorenia <  y.rok_do
-    GROUP BY d.id_casnika
-),
-so_window AS (
+-- Hlavny analyticky dopyt bez CTE, cez vnorene subqueries
+SELECT
+    w.poradie_podla_trzby                       AS poradie,
+    z.meno || ' ' || z.priezvisko              AS casnik,
+    w.pocet_objednavok,
+    w.celkova_trzba                             AS trzba_eur,
+    w.avg_hodnota_objednavky                    AS avg_objednavka_eur,
+    w.avg_hodnotenie,
+    w.pocet_recenzii,
+    w.podiel_na_celku_pct                       AS podiel_pct,
+    w.kumulativna_trzba_podla_poradia           AS kumulativna_trzba_eur
+FROM (
     SELECT
         s.id_casnika,
         s.pocet_objednavok,
@@ -349,19 +324,29 @@ so_window AS (
                 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
             )
         , 2)                                    AS kumulativna_trzba_podla_poradia
-    FROM casnik_stats s
-    LEFT JOIN casnik_hodnotenia h ON h.id_casnika = s.id_casnika
-)
-SELECT
-    w.poradie_podla_trzby                       AS poradie,
-    z.meno || ' ' || z.priezvisko              AS casnik,
-    w.pocet_objednavok,
-    w.celkova_trzba                             AS trzba_eur,
-    w.avg_hodnota_objednavky                    AS avg_objednavka_eur,
-    w.avg_hodnotenie,
-    w.pocet_recenzii,
-    w.podiel_na_celku_pct                       AS podiel_pct,
-    w.kumulativna_trzba_podla_poradia           AS kumulativna_trzba_eur
-FROM so_window w
+    FROM (
+        SELECT
+            t.id_casnika,
+            COUNT(*)                                AS pocet_objednavok,
+            ROUND(SUM(t.trzba_objednavky), 2)       AS celkova_trzba,
+            ROUND(AVG(t.trzba_objednavky), 2)       AS avg_hodnota_objednavky
+        FROM v_dine_in_trzby t
+        WHERE t.cas_vytvorenia >= (current_setting('myapp.p_rok') || '-01-01')::TIMESTAMP
+          AND t.cas_vytvorenia <  ((current_setting('myapp.p_rok')::INT + 1)::TEXT || '-01-01')::TIMESTAMP
+        GROUP BY t.id_casnika
+    ) s
+    LEFT JOIN (
+        SELECT
+            d.id_casnika,
+            ROUND(AVG(r.hodnotenie), 2)             AS avg_hodnotenie,
+            COUNT(r.id)                             AS pocet_recenzii
+        FROM Recenzia           r
+        JOIN Objednavka         o  ON o.id = r.id_objednavky
+        JOIN DineInObjednavka   d  ON d.id = o.id
+        WHERE o.cas_vytvorenia >= (current_setting('myapp.p_rok') || '-01-01')::TIMESTAMP
+          AND o.cas_vytvorenia <  ((current_setting('myapp.p_rok')::INT + 1)::TEXT || '-01-01')::TIMESTAMP
+        GROUP BY d.id_casnika
+    ) h ON h.id_casnika = s.id_casnika
+) w
 JOIN Zamestnanec z ON z.id = w.id_casnika
 ORDER BY w.poradie_podla_trzby;

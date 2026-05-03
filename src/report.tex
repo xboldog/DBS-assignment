@@ -245,33 +245,38 @@ dine-in objednávky, kontrolu dostupných položiek menu a uloženie snímky cen
 
 \subsection*{SQL implementácia}
 
-Implementácia je v súbore \texttt{queries.sql}. Používa CTE, \texttt{UPDATE},
-\texttt{INSERT ... RETURNING} a finálny \texttt{SELECT}. Nepoužíva PL/pgSQL blok
+Implementácia je v súbore \texttt{queries.sql}. Parametre a vstupné položky sa na začiatku uložia do
+krátkych dočasných tabuliek, aby sa neopakovali vo všetkých dotazoch. Samotná validácia a zápisy
+používajú \texttt{UPDATE}, \texttt{INSERT ... SELECT} a vnorené subqueries. Nepoužíva PL/pgSQL blok
 \texttt{DO}, vlastné uložené funkcie, procedúry, triggery ani kurzory.
+Nasledujúci výpis je skrátená kostra; úplná spustiteľná verzia je v súbore \texttt{queries.sql}.
 
-\begin{lstlisting}[language=SQL]
-WITH
-params AS (...),
-input_items(polozka_id, mnozstvo) AS (...),
-valid_reservation AS (...),
-valid_items AS (...),
-validation_errors AS (...),
-activated_reservation AS (
-    UPDATE Rezervacia r
-    SET stav = 'aktivna'
-    FROM valid_reservation vr
-    WHERE r.id = vr.id
-      AND NOT EXISTS (SELECT 1 FROM validation_errors)
-    RETURNING r.id AS id_rezervacie
-),
-inserted_order AS (
-    INSERT INTO Objednavka (stav, cas_vytvorenia)
-    SELECT 'nova'::stav_objednavky, p.p_datum + p.p_cas
-    FROM params p
-    WHERE EXISTS (SELECT 1 FROM activated_reservation)
-    RETURNING id, stav, cas_vytvorenia
-)
-SELECT ...
+\begin{lstlisting}
+BEGIN;
+
+CREATE TEMP TABLE tmp_p1_params ON COMMIT DROP AS
+SELECT vstupne_parametre;
+
+CREATE TEMP TABLE tmp_p1_items ON COMMIT DROP AS
+SELECT polozka_id, mnozstvo
+FROM vstupne_polozky;
+
+CREATE TEMP TABLE tmp_p1_errors ON COMMIT DROP AS
+SELECT sprava
+FROM validacne_kontroly
+WHERE pravidlo_neplati;
+
+CREATE TEMP TABLE tmp_p1_order ON COMMIT DROP AS
+SELECT nextval('objednavka_id_seq')::INT AS id_objednavky
+WHERE NOT EXISTS (SELECT 1 FROM tmp_p1_errors);
+
+-- nasleduju INSERTy do Objednavka, DineInObjednavka a ObjednavkaPolozka
+-- a UPDATE potvrdenej rezervacie na stav aktivna
+
+SELECT vysledok, sprava
+FROM vystup_procesu;
+
+COMMIT;
 \end{lstlisting}
 
 \subsection*{Ukážka spustenia}
@@ -304,8 +309,8 @@ Cappuccino & nova & 2 & 7.64 \\
 
 \subsection*{Zdôvodnenie korektnosti}
 
-Objednávka sa vloží iba vtedy, keď CTE \texttt{validation\_errors} nevráti žiadny riadok. Všetky
-zápisy sú v jednom SQL príkaze, takže nevznikne situácia, že sa vytvorí iba časť objednávky.
+Objednávka sa vloží iba vtedy, keď dočasná tabuľka \texttt{tmp\_p1\_errors} ostane prázdna.
+Všetky zápisy sú v jednej transakcii, takže nevznikne situácia, že sa vytvorí iba časť objednávky.
 Snímka ceny sa berie z aktuálnej ceny v \texttt{PolozkaMenu} v momente vytvorenia objednávky.
 
 \subsection*{Indexy podporujúce proces}
@@ -335,9 +340,9 @@ objednávky, položky objednávky, faktúry a recenzie. Zároveň nadväzuje na 
 
 \subsection*{SQL implementácia}
 
-Proces používa pohľad \texttt{v\_dine\_in\_trzby}, CTE, agregácie a window funkcie. Rok sa filtruje
-cez rozsah dátumov, nie cez \texttt{EXTRACT(YEAR ...)}, aby databáza vedela efektívnejšie použiť
-index na \texttt{Objednavka.cas\_vytvorenia}.
+Proces používa pohľad \texttt{v\_dine\_in\_trzby}, vnorené subqueries, agregácie a window funkcie.
+Rok sa filtruje cez rozsah dátumov, nie cez \texttt{EXTRACT(YEAR ...)}, aby databáza vedela
+efektívnejšie použiť index na \texttt{Objednavka.cas\_vytvorenia}.
 
 \begin{lstlisting}[language=SQL]
 CREATE OR REPLACE VIEW v_dine_in_trzby AS
@@ -350,11 +355,29 @@ JOIN ObjednavkaPolozka op ON op.id_objednavky = o.id
 WHERE o.stav <> 'zrusena'
 GROUP BY o.id, o.cas_vytvorenia, d.id_casnika;
 
-WITH year_bounds AS (
-    SELECT '2026-01-01'::TIMESTAMP AS rok_od,
-           '2027-01-01'::TIMESTAMP AS rok_do
-)
-SELECT ...
+SELECT w.id_casnika, z.meno, z.priezvisko,
+       w.pocet_objednavok, w.celkova_trzba,
+       w.avg_hodnotenie, w.poradie
+FROM (
+    SELECT s.*, h.avg_hodnotenie,
+           RANK() OVER (ORDER BY s.celkova_trzba DESC) AS poradie
+    FROM (
+        SELECT id_casnika, COUNT(*) AS pocet_objednavok,
+               SUM(trzba_objednavky) AS celkova_trzba
+        FROM v_dine_in_trzby
+        WHERE cas_vytvorenia >= '2026-01-01'
+          AND cas_vytvorenia <  '2027-01-01'
+        GROUP BY id_casnika
+    ) s
+    LEFT JOIN (
+        SELECT d.id_casnika, AVG(r.hodnotenie) AS avg_hodnotenie
+        FROM Recenzia r
+        JOIN Objednavka o ON o.id = r.id_objednavky
+        JOIN DineInObjednavka d ON d.id = o.id
+        GROUP BY d.id_casnika
+    ) h ON h.id_casnika = s.id_casnika
+) w
+JOIN Zamestnanec z ON z.id = w.id_casnika;
 \end{lstlisting}
 
 \subsection*{Ukážka výstupu}
@@ -542,7 +565,8 @@ Limit  (actual time=0.037..0.037 rows=1 loops=1)
               Index Cond: ((cislo_stola = 8)
                            AND (datum = '2026-05-03'::date)
                            AND (stav = 'potvrdena'::stav_rezervacie))
-              Filter: (id_zakaznika = 320 AND ...)
+              Filter: (id_zakaznika = 320
+                       AND '13:15'::time BETWEEN cas_zaciatku AND cas_konca)
 Planning Time: 0.264 ms
 Execution Time: 0.059 ms
 \end{lstlisting}
