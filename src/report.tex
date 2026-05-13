@@ -417,6 +417,7 @@ nezapočítavajú. Join na \texttt{Faktura} zabezpečí, že report reprezentuje
     \item \texttt{idx\_objednavka\_cas\_vytvorenia} podporuje rozsahový filter zvoleného roka.
     \item \texttt{idx\_faktura\_zaplatena} podporuje výber zaplatených faktúr; na aktuálnom seede však plánovač volí sekvenčný sken, keďže takmer všetky faktúry sú zaplatené.
     \item \texttt{idx\_objednavkapolozka\_objednavka} podporuje agregáciu položiek podľa objednávky.
+    \item \texttt{idx\_dinein\_casnik} podporuje filtrovanie a agregáciu objednávok podľa čašníka.
 \end{itemize}
 
 Kontrola cez \texttt{EXPLAIN (ANALYZE, BUFFERS)} nad seed dátami potvrdila použitie indexu nad
@@ -428,7 +429,7 @@ filter \texttt{je\_zaplatena = TRUE} v seede vyberá takmer všetky riadky.
 \section{Výkonnosť a indexy}
 
 PostgreSQL automaticky vytvára indexy pre \texttt{PRIMARY KEY} a \texttt{UNIQUE} obmedzenia.
-Tieto indexy sa do požadovaného minima nepočítajú. V schéme preto vytvárame päť vlastných
+Tieto indexy sa do požadovaného minima nepočítajú. V schéme preto vytvárame šesť vlastných
 indexov, ktoré priamo podporujú dva implementované procesy.
 
 \subsection*{\texttt{idx\_rezervacia\_stol\_datum}}
@@ -449,15 +450,28 @@ iba na malú množinu kandidátov.
 
 \begin{lstlisting}[language=SQL]
 CREATE INDEX idx_polozka_dostupna
-    ON PolozkaMenu (je_dostupna);
+    ON PolozkaMenu (id)
+    WHERE je_dostupna = TRUE;
+
 \end{lstlisting}
 
 Index podporuje proces 1 pri validácii, že objednávané položky menu existujú a sú dostupné.
-Dopyt aj pohľad \texttt{v\_dostupne\_polozky} používajú podmienku
-\texttt{je\_dostupna = TRUE}. Pri overení konkrétnej položky objednávky je však v predikáte aj
-\texttt{PolozkaMenu.id}, takže databáza môže namiesto tohto indexu použiť primárny kľúč nad
-\texttt{id} a dostupnosť skontrolovať až filtrom. Index je preto najvhodnejší pre časté filtrovanie
-dostupného menu; pri malej tabuľke menu môže optimalizátor zvoliť aj sekvenčný sken.
+Ide o partial index, takže obsahuje iba riadky, kde
+
+\texttt{je\_dostupna = TRUE}. Keďže proces pracuje iba s dostupnými položkami menu,
+index je menší než plný index nad všetkými riadkami tabuľky.
+Index podporuje filtrovanie dostupných položiek menu a zároveň umožňuje efektívne
+vyhľadanie konkrétnej dostupnej položky podľa \texttt{id}. Pri dotazoch typu:
+\begin{lstlisting}[language=SQL]
+SELECT *
+FROM PolozkaMenu
+WHERE je_dostupna = TRUE
+  AND id = ?;
+\end{lstlisting}
+
+môže PostgreSQL použiť priamo tento partial index namiesto sekvenčného skenu
+celej tabuľky. Pri malej tabuľke menu však optimalizátor môže stále zvoliť
+sekvenčný sken, pretože jeho cena môže byť nižšia než použitie indexu.
 
 \subsection*{\texttt{idx\_objednavkapolozka\_objednavka}}
 
@@ -493,20 +507,31 @@ sekvenčné skenovanie všetkých objednávok pri ročných reportoch. Keby bol 
 \texttt{EXTRACT(YEAR FROM cas\_vytvorenia)}, databáza by musela vypočítať výraz pre každý riadok
 a tento index by sa používal horšie alebo vôbec.
 
-\subsection*{\texttt{idx\_faktura\_zaplatena}}
+\subsection*{\texttt{idx\_faktura\_nezaplatena}}
 
 \begin{lstlisting}[language=SQL]
-CREATE INDEX idx_faktura_zaplatena
-    ON Faktura (je_zaplatena, id_objednavky);
+CREATE INDEX idx_faktura_nezaplatena
+    ON Faktura (id_objednavky)
+    WHERE je_zaplatena = FALSE;
 \end{lstlisting}
 
-Index podporuje proces 2. Report má počítať iba reálne tržby, preto pohľad
-\texttt{v\_dine\_in\_trzby} joinuje tabuľku \texttt{Faktura} a filtruje
-\texttt{je\_zaplatena = TRUE}. Prvý stĺpec indexu podporuje filter zaplatených faktúr, druhý stĺpec
-podporuje následný join na \texttt{Objednavka.id}. Na aktuálnom seede je však hodnota
-\texttt{je\_zaplatena = TRUE} veľmi málo selektívna, pretože zaplatených je 3602 z 3621 faktúr.
-Reálny plán preto používa \texttt{Seq Scan on faktura}. Index ostáva opodstatnený pre väčšiu alebo
-vyváženejšiu produkčnú databázu, kde filter zaplatených faktúr môže znížiť počet čítaných riadkov.
+Index podporuje proces 2 pri vyhľadávaní nezaplatených faktúr.
+Keďže atribút \texttt{je\_zaplatena} obsahuje iba dve hodnoty, partial index je efektívnejší
+ako klasický B-tree index nad boolean stĺpcom. Index obsahuje iba riadky so stavom
+\texttt{FALSE}, čím znižuje veľkosť indexu aj počet čítaných stránok.
+
+\subsection*{\texttt{idx\_dinein\_casnik}}
+
+\begin{lstlisting}[language=SQL]
+CREATE INDEX idx_dinein_casnik
+    ON DineInObjednavka (id_casnika);
+\end{lstlisting}
+
+Index podporuje proces 2 pri filtrovaní a agregácii objednávok podľa čašníka.
+Report zoskupuje dine-in objednávky podľa \texttt{id\_casnika}, počíta tržby,
+počet objednávok a priemerné hodnotenia jednotlivých čašníkov. Bez indexu musí
+databáza prechádzať celú tabuľku \texttt{DineInObjednavka} sekvenčným skenom pri
+vyhľadávaní objednávok konkrétneho čašníka.
 
 \subsection*{EXPLAIN porovnanie}
 
